@@ -830,8 +830,9 @@ class Manager:
             self.context_building = False
 
     def _free_bytes_now(self):
-        now = self.memory.free_now()
-        return now * GIB if now is not None else None
+        """Free memory as the box reports it (for the chat facts; the sizing adds back the
+        assistant's own runner, these do not)."""
+        return boxfacts.mem_available_bytes()
 
     # -- owner actions (called from the web server)
     def choose(self, key):

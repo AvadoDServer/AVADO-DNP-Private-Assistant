@@ -908,15 +908,15 @@ class BoxFacts(unittest.TestCase):
             return {"containers": [], "clients": []}
 
         f = b.Facts(prometheus=Prom(), call=call, clock=lambda: 0, wall=lambda: 1793825391,
-                    cpu=lambda: "AMD Ryzen 9 8945HS", mem_total=lambda: 66.8e9, threads=lambda: 16)
+                    cpu=lambda: "AMD Ryzen 9 8945HS", mem_total=lambda: 66755842048, threads=lambda: 16)
         text = f.context(59e9)
         self.assertTrue(text.startswith("You are the Private Assistant"))
-        for want in ("processor AMD Ryzen 9 8945HS (16 threads), memory 67 GB, disk 3.9 TB",
+        for want in ("processor AMD Ryzen 9 8945HS (16 threads), memory 64 GB, disk 3.9 TB",
                      "Installed apps: Teku 0.0.77 (running).", "AVADO system parts: dappmanager 10.0.54.",
                      "Free memory: 59 GB.", "Processor busy: 2%.", "Ethereum clients running (memory used): teku 6.0 GB.",
                      "teku (mainnet): head slot", "in sync, 80 peers.",
                      "attestations in the last hour (teku): 10 made, 0 missed.",
-                     "Free disk: 3.7 TB; at the last 7 days' pace the disk would be full in more than 10 years.",
+                     "Free disk: 3.7 TB of 3.9 TB (95% free); at the last 7 days' pace the disk would be full in more than 10 years.",
                      "Problems found: none.", "seed phrase", "docs.ava.do", "support@ava.do", "I don't know"):
             self.assertIn(want, text)
         # stable facts before the live numbers

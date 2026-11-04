@@ -397,6 +397,18 @@ def gb(n):
     return "%.1f GB" % g
 
 
+RAM_SIZES_GB = (4, 8, 12, 16, 24, 32, 48, 64, 96, 128, 192, 256, 384, 512)
+
+
+def ram_as_sold(n):
+    """Linux reports a little less than the memory fitted: name the size the owner bought."""
+    gib = n / GIB
+    for size in RAM_SIZES_GB:
+        if gib <= size:
+            return "%d GB" % size
+    return "%d GB" % round(gib)
+
+
 def days_text(days):
     if days is None:
         return "the disk is not filling up"
@@ -464,7 +476,7 @@ class Facts:
         if self.cpu():
             box.append("processor %s (%s threads)" % (self.cpu(), self.threads()))
         if self.mem_total():
-            box.append("memory %s" % gb(self.mem_total()))
+            box.append("memory %s" % ram_as_sold(self.mem_total()))
         size = p.one(Q_DISK_SIZE)
         if size:
             box.append("disk %s" % gb(size))
@@ -521,7 +533,8 @@ class Facts:
         slope = p.one(Q_DISK_SLOPE)
         if free is not None:
             days = free / -slope / 86400 if slope is not None and slope < 0 else None
-            lines.append("- Free disk: %s; at the last 7 days' pace %s." % (gb(free), days_text(days)))
+            share = " of %s (%d%% free)" % (gb(size), round(100 * free / size)) if size else ""
+            lines.append("- Free disk: %s%s; at the last 7 days' pace %s." % (gb(free), share, days_text(days)))
         findings = self._findings(packages)
         if findings is None:
             lines.append("- Problems found: unknown (this box's system is too old to report them).")
