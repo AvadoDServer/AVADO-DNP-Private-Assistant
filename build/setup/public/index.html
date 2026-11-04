@@ -27,51 +27,67 @@
             <p id="progress-text" class="small"></p>
           </div>
           <p id="problem" class="notice" hidden></p>
-          <div class="actions" id="main-actions">
-            <a class="button" id="open" href="/" target="_blank" rel="noopener" hidden>Open the assistant</a>
+        </div>
+      </section>
+
+      <section class="card">
+        <ol class="checklist">
+          <li id="step-1">
+            <div class="step-head"><span class="step-title">Create your account</span><span class="tick" id="tick-1"></span></div>
+            <p id="step-1-text">The first account becomes the owner. After that, nobody else can sign up.</p>
             <a class="button" id="signup" href="/auth" target="_blank" rel="noopener" hidden>Create your account</a>
-            <button type="button" class="button ghost" id="retry" hidden>Try again</button>
-            <button type="button" class="button ghost" id="cancel" hidden>Stop the download</button>
-          </div>
+          </li>
+          <li id="step-2">
+            <div class="step-head"><span class="step-title">Get the AI model</span><span class="tick" id="tick-2"></span></div>
+            <p id="step-2-text">The box downloads it by itself.</p>
+            <div class="actions">
+              <button type="button" class="button ghost" id="retry" hidden>Try again</button>
+              <button type="button" class="button ghost" id="cancel" hidden>Stop the download</button>
+            </div>
+          </li>
+          <li id="step-3">
+            <div class="step-head"><span class="step-title">Start chatting</span></div>
+            <p id="speed-text" class="muted small" hidden></p>
+            <a class="button" id="open" href="/" target="_blank" rel="noopener" hidden>Open the assistant</a>
+          </li>
+        </ol>
+      </section>
+
+      <details class="card more" id="more">
+        <summary>More options</summary>
+
+        <div class="more-item">
+          <h3>Model</h3>
+          <p class="muted small" id="box-line"></p>
+          <p class="notice info small" id="signin-hint" hidden>
+            To change the model, <a href="/auth" target="_blank" rel="noopener">sign in to the assistant</a> with the owner account, then come back to this page.
+          </p>
+          <ul class="models" id="models"></ul>
+          <p class="muted small" id="hidden-models" hidden>Bigger models are not shown: this box does not have the memory or free space for them.</p>
         </div>
-      </section>
 
-      <section class="card" id="account" hidden>
-        <h2>First: make your account</h2>
-        <p>
-          The first account made here becomes the owner of the assistant. Make it now, so nobody else on your network can.
-          After that, nobody else can make an account. To let family members use the assistant, add them yourself (in the assistant: Admin panel, Users).
-        </p>
-        <p class="muted small">You can do this while the model is still downloading.</p>
-      </section>
-
-      <section class="card" id="speed-card" hidden>
-        <h2>How fast is it on this box?</h2>
-        <p id="speed-text"></p>
-        <div class="actions">
-          <button type="button" class="button ghost small" id="speedtest">Measure again</button>
+        <div class="more-item" id="speed-card" hidden>
+          <h3>Speed</h3>
+          <p class="small" id="speed-more"></p>
+          <div class="actions"><button type="button" class="button ghost small" id="speedtest">Measure again</button></div>
         </div>
-      </section>
 
-      <section class="card">
-        <h2>Model</h2>
-        <p class="muted" id="box-line"></p>
-        <p class="notice info" id="signin-hint" hidden>
-          To change the model, <a href="/auth" target="_blank" rel="noopener">sign in to the assistant</a> with the owner account first, then come back to this page.
-        </p>
-        <ul class="models" id="models"></ul>
-      </section>
+        <div class="more-item">
+          <h3>Family members</h3>
+          <p class="small">Add them yourself in the assistant: your name at the bottom left, Admin Panel, Users.</p>
+        </div>
 
-      <section class="card">
-        <h2>Good to know</h2>
-        <ul class="facts-list">
-          <li><strong>Private.</strong> Your chats and documents stay on this box. Nothing is sent to an AI company. The box only goes online to download models and updates.</li>
-          <li><strong>It runs on the processor.</strong> It does not use a graphics chip (no AVADO box can use one for AI yet), so answers come at a steady pace, not instantly. When you add a document to a chat, the assistant reads all of it first, so a long document can take a few minutes before the answer starts.</li>
-          <li><strong>Your node comes first.</strong> While the assistant is answering, your other apps get priority, and the model is unloaded from memory after 10 minutes without use. The first answer after a pause takes longer while the model loads again.</li>
-          <li><strong>Bigger is smarter, but needs more.</strong> Big models need a lot of memory and free space. The page suggests the biggest one that fits next to your node.</li>
-          <li><strong>It can be wrong.</strong> Check important answers, especially about money, health or law.</li>
-        </ul>
-      </section>
+        <div class="more-item">
+          <h3>Good to know</h3>
+          <ul class="facts-list small">
+            <li><strong>Private.</strong> Your chats and documents stay on this box. Nothing is sent to an AI company. The box only goes online to download models and updates.</li>
+            <li><strong>It runs on the processor.</strong> It does not use a graphics chip (no AVADO box can use one for AI yet), so answers come at a steady pace, not instantly. When you add a document to a chat, the assistant reads all of it first, so a long document can take a few minutes before the answer starts.</li>
+            <li><strong>Your node comes first.</strong> While the assistant is answering, your other apps get priority, and the model is unloaded from memory after 10 minutes without use. The first answer after a pause takes longer while the model loads again.</li>
+            <li><strong>Bigger is smarter, but needs more.</strong> Big models need a lot of memory and free space. The page suggests the biggest one that fits next to your node.</li>
+            <li><strong>It can be wrong.</strong> Check important answers, especially about money, health or law.</li>
+          </ul>
+        </div>
+      </details>
     </main>
   </body>
 </html>
