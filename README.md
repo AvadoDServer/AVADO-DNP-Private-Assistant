@@ -53,8 +53,9 @@ AVADO's package format has no CPU or memory limits (the DAPPMANAGER does not pas
 
 - Ollama runs with `nice 15` and the lowest best-effort disk priority, Open WebUI with `nice 10`.
 - Ollama has `oom_score_adj 1000`: if the box runs out of memory, Linux stops the model, not the node.
-- One answer at a time (`OLLAMA_NUM_PARALLEL=1`), the model is unloaded after 10 minutes without use,
-  context 16k tokens.
+- One answer at a time (`OLLAMA_NUM_PARALLEL=1`) and one model in memory at a time
+  (`OLLAMA_MAX_LOADED_MODELS=1`, so a chat with a second model cannot load two big models next to the
+  node); the model is unloaded after 10 minutes without use, context 16k tokens.
 - The background extras that would make every chat slower on a processor are off: follow-up
   suggestions, tags, search and retrieval queries, autocomplete. Titles stay on.
 

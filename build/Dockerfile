@@ -70,7 +70,9 @@ RUN set -eux; \
     ! test -e /opt/avado/setup/tests
 
 # Ollama: on the box only (127.0.0.1), models in the models volume, never the
-# cloud, one answer at a time, unloaded after 10 minutes without use.
+# cloud, one answer at a time, one model in memory at a time (a second big
+# model next to the first could push the node out of memory), unloaded after
+# 10 minutes without use.
 # Open WebUI: sign-in required; the first account becomes the owner and closes
 # sign-up (the owner adds other people in Open WebUI's admin panel),
 # no cloud AI connections, no update checks or sharing, and none of the extra
@@ -83,7 +85,7 @@ ENV OLLAMA_HOST=127.0.0.1:11434 \
     OLLAMA_NO_CLOUD=1 \
     OLLAMA_KEEP_ALIVE=10m \
     OLLAMA_NUM_PARALLEL=1 \
-    OLLAMA_MAX_LOADED_MODELS=2 \
+    OLLAMA_MAX_LOADED_MODELS=1 \
     OLLAMA_MAX_QUEUE=16 \
     OLLAMA_CONTEXT_LENGTH=16384 \
     WEBUI_URL=http://assistant.my.ava.do \
