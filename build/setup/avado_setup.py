@@ -272,12 +272,19 @@ class Progress:
         self.stage = "starting"
         self.clock = clock
         self.samples = collections.deque()
+        # Bytes already on the box when a part was first seen (a download that
+        # goes on where it stopped): not counted in the speed.
+        self.resumed = 0
 
     def feed(self, event):
         status = (event.get("status") or "").lower()
         digest = event.get("digest")
         if digest and event.get("total"):
-            self.layers[digest] = (int(event["total"]), int(event.get("completed") or 0))
+            completed = int(event.get("completed") or 0)
+            if digest not in self.layers and completed:
+                self.resumed += completed
+                self.samples.clear()
+            self.layers[digest] = (int(event["total"]), completed)
             self.stage = "downloading"
         elif status.startswith("pulling manifest"):
             self.stage = "starting"
@@ -297,7 +304,7 @@ class Progress:
 
     def sample(self):
         now = self.clock()
-        self.samples.append((now, self.done()))
+        self.samples.append((now, self.done() - self.resumed))
         while len(self.samples) > 2 and now - self.samples[0][0] > self.WINDOW:
             self.samples.popleft()
 
@@ -487,11 +494,33 @@ class WebUI:
         return cfg
 
     def set_default_model(self, token, tag):
-        """Make `tag` the model a new chat starts with (Admin settings, Models)."""
+        """Make `tag` the model a new chat starts with (Admin settings, Models),
+        and keep Open WebUI's built-in tools off for every model unless the owner
+        has set that switch himself.
+
+        The built-in tools (search memories, notes, chats, knowledge; ask the user;
+        time) add about 5,500 tokens of instructions to every question. A processor
+        needs one to two minutes to read them before the first word, and the model
+        then often searches empty notes and asks a question back instead of
+        answering (seen on the test box with Qwen3 30B). The image's
+        DEFAULT_MODEL_METADATA only seeds Open WebUI's very first start, so this
+        also covers a box that started with an older image."""
         cfg = self.default_model(token)
-        if (cfg.get("DEFAULT_MODELS") or "") == tag:
+        changed = False
+        if (cfg.get("DEFAULT_MODELS") or "") != tag:
+            cfg["DEFAULT_MODELS"] = tag
+            changed = True
+        meta = cfg.get("DEFAULT_MODEL_METADATA")
+        meta = dict(meta) if isinstance(meta, dict) else {}
+        caps = meta.get("capabilities")
+        caps = dict(caps) if isinstance(caps, dict) else {}
+        if "builtin_tools" not in caps:
+            caps["builtin_tools"] = False
+            meta["capabilities"] = caps
+            cfg["DEFAULT_MODEL_METADATA"] = meta
+            changed = True
+        if not changed:
             return False
-        cfg["DEFAULT_MODELS"] = tag
         http_json(self.base + "/api/v1/configs/models", data=cfg, headers=self._auth(token), timeout=10)
         return True
 

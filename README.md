@@ -7,7 +7,9 @@ helper picks a model that suits the box, downloads it with progress in plain wor
 fast it is.
 
 Address: http://assistant.my.ava.do (the chat) and http://assistant.my.ava.do/avado/ (the setup page,
-also the Admin's Setup tab). Until a model is on the box, `/` opens the setup page.
+also the Admin's Setup tab). Until a model is on the box, `/` opens the setup page. The setup page is
+three numbered steps with a live tick (create your account, get the AI model, start chatting) and one
+button each; model choice, speed, family members and background facts sit under "More options".
 
 ## What it does on first start
 
@@ -58,6 +60,14 @@ AVADO's package format has no CPU or memory limits (the DAPPMANAGER does not pas
   node); the model is unloaded after 10 minutes without use, context 16k tokens.
 - The background extras that would make every chat slower on a processor are off: follow-up
   suggestions, tags, search and retrieval queries, autocomplete. Titles stay on.
+- Open WebUI's built-in tools (search memories, notes, chats and knowledge; ask the user; time) are off
+  for every model (`DEFAULT_MODEL_METADATA` capabilities `builtin_tools: false`). With them on, a
+  one-line question becomes a 5,500-token prompt; on the test box (Ryzen 9 8945HS, Qwen3 30B) the first
+  question then took over 2 minutes, searched six empty tools and ended with a question back instead
+  of an answer. Off: 22-31 prompt tokens, first words after 2-3 s (15 s when the model was unloaded),
+  about 27 tokens per second. The image setting only seeds Open WebUI's first start, so the setup helper
+  also sets it through Open WebUI's admin API when the owner opens the setup page, unless the owner has
+  set the switch himself. Documents added to a chat still work.
 
 ## Privacy
 

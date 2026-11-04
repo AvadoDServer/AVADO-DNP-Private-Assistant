@@ -80,6 +80,12 @@ RUN set -eux; \
 # make every chat slower on a processor. A document added to a chat is given
 # to the model whole ("full context"): the slim image stores document search
 # data only in an external PostgreSQL server, which the box does not have.
+# Open WebUI's built-in tools (search memories, notes, chats; ask the user;
+# time) are off for every model: they add about 5,500 tokens to every question,
+# which a processor needs one to two minutes to read, and the model then tends
+# to search empty notes and ask a question back instead of answering (test box,
+# Qwen3 30B). Documents added to a chat still work. This only seeds the first
+# start; the setup helper keeps it so (unless the owner sets it himself).
 ENV OLLAMA_HOST=127.0.0.1:11434 \
     OLLAMA_MODELS=/models/models \
     OLLAMA_NO_CLOUD=1 \
@@ -107,6 +113,7 @@ ENV OLLAMA_HOST=127.0.0.1:11434 \
     ENABLE_CODE_INTERPRETER=false \
     ENABLE_EVALUATION_ARENA_MODELS=false \
     BYPASS_EMBEDDING_AND_RETRIEVAL=true \
+    DEFAULT_MODEL_METADATA='{"capabilities":{"builtin_tools":false}}' \
     CORS_ALLOW_ORIGIN=http://assistant.my.ava.do \
     AVADO_STATE_DIR=/app/backend/data/avado \
     AVADO_VERSION_FILE=/opt/avado/package-version \

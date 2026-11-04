@@ -179,6 +179,22 @@ class ProgressMath(unittest.TestCase):
         p.feed({"status": "verifying sha256 digest"})
         self.assertEqual(p.summary()["stage"], "verifying")
 
+    def test_resumed_download_counts_only_new_bytes_in_the_speed(self):
+        # Seen on the test box: 551 MB were already there from a stopped download;
+        # the page said "104 MB per second, less than a minute" at about 7 MB per second.
+        t = [0.0]
+        p = s.Progress(expected_total=2_500_000_000, clock=lambda: t[0])
+        p.feed({"status": "pulling manifest"})
+        t[0] = 1.0
+        p.feed({"digest": "big", "total": 2_500_000_000, "completed": 551_000_000})
+        for i in range(1, 7):
+            t[0] = 1.0 + i
+            p.feed({"digest": "big", "total": 2_500_000_000, "completed": 551_000_000 + i * 7_000_000})
+        sm = p.summary()
+        self.assertEqual(sm["done_plain"], "593 MB")
+        self.assertEqual(sm["speed_plain"], "7.0 MB per second")
+        self.assertEqual(sm["eta_plain"], "about 5 minutes")
+
 
 class ManagerFlow(unittest.TestCase):
     def setUp(self):
@@ -502,6 +518,73 @@ class OllamaClient(unittest.TestCase):
         self.assertEqual(len(self.generate_calls), 2)
         self.assertEqual(self.generate_calls[0]["think"], "low")
         self.assertEqual(self.generate_calls[0]["options"], {"num_predict": 96})
+
+
+class WebUISettingsTest(unittest.TestCase):
+    """set_default_model against a stub of Open WebUI's /api/v1/configs/models."""
+
+    def setUp(self):
+        from http.server import BaseHTTPRequestHandler
+
+        self.posts = []
+        self.cfg = {"DEFAULT_MODELS": "", "DEFAULT_PINNED_MODELS": None, "MODEL_ORDER_LIST": [],
+                    "DEFAULT_MODEL_METADATA": {}, "DEFAULT_MODEL_PARAMS": {}}
+        test = self
+
+        class Stub(BaseHTTPRequestHandler):
+            def log_message(self, *a):
+                pass
+
+            def _json(self, obj):
+                data = json.dumps(obj).encode()
+                self.send_response(200)
+                self.send_header("Content-Type", "application/json")
+                self.send_header("Content-Length", str(len(data)))
+                self.end_headers()
+                self.wfile.write(data)
+
+            def do_GET(self):
+                self._json(test.cfg)
+
+            def do_POST(self):
+                body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
+                test.posts.append((self.headers.get("Authorization"), body))
+                test.cfg = body
+                self._json(body)
+
+        self.server = s.ThreadingHTTPServer(("127.0.0.1", 0), Stub)
+        threading.Thread(target=self.server.serve_forever, daemon=True).start()
+        self.webui = s.WebUI("http://127.0.0.1:%d" % self.server.server_address[1])
+
+    def tearDown(self):
+        self.server.shutdown()
+        self.server.server_close()
+
+    def test_sets_model_and_turns_builtin_tools_off(self):
+        self.assertTrue(self.webui.set_default_model("tok", "qwen3:1.7b"))
+        auth, body = self.posts[-1]
+        self.assertEqual(auth, "Bearer tok")
+        self.assertEqual(body["DEFAULT_MODELS"], "qwen3:1.7b")
+        self.assertEqual(body["DEFAULT_MODEL_METADATA"], {"capabilities": {"builtin_tools": False}})
+        self.assertEqual(body["MODEL_ORDER_LIST"], [])
+        # nothing left to change: no second write
+        self.assertFalse(self.webui.set_default_model("tok", "qwen3:1.7b"))
+        self.assertEqual(len(self.posts), 1)
+
+    def test_keeps_the_owners_own_choice_and_other_settings(self):
+        self.cfg["DEFAULT_MODELS"] = "qwen3:1.7b"
+        self.cfg["DEFAULT_MODEL_METADATA"] = {"capabilities": {"builtin_tools": True, "vision": False}, "x": 1}
+        self.assertFalse(self.webui.set_default_model("tok", "qwen3:1.7b"))
+        self.assertEqual(self.posts, [])
+        self.cfg["DEFAULT_MODEL_METADATA"] = {"capabilities": {"vision": False}, "x": 1}
+        self.assertTrue(self.webui.set_default_model("tok", "qwen3:1.7b"))
+        self.assertEqual(self.posts[-1][1]["DEFAULT_MODEL_METADATA"],
+                         {"capabilities": {"vision": False, "builtin_tools": False}, "x": 1})
+
+    def test_handles_a_missing_or_odd_metadata_value(self):
+        self.cfg["DEFAULT_MODEL_METADATA"] = None
+        self.assertTrue(self.webui.set_default_model("tok", "a:b"))
+        self.assertEqual(self.posts[-1][1]["DEFAULT_MODEL_METADATA"], {"capabilities": {"builtin_tools": False}})
 
 
 if __name__ == "__main__":
