@@ -1,0 +1,116 @@
+# AVADO Private Assistant package image: Ollama (processor only) + Open WebUI +
+# the AVADO setup helper, behind nginx, in one container.
+#
+# Build context is the repository root (docker-compose.yml: context ".",
+# dockerfile "build/Dockerfile"), so the image can read the package version
+# from dappnode_package.json. See /.dockerignore for what is sent.
+
+# Upstream images, pinned by digest (the multi-arch index digest). The tag is
+# only a label; the digest decides. Update tag and digest together: get the
+# digest with `docker buildx imagetools inspect <image>:<tag>` ("Digest:" line).
+# Checked 2026-11-04.
+ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.12.5-slim@sha256:9a4db3e6c8d6174d4ed8952304115e90dcc36e9a8b98c2f8984eab321f29505e
+ARG OLLAMA_IMAGE=ollama/ollama:0.40.13@sha256:b2f0122c476bc9fe7ce679d8bb4bd555351e25e2554eefb156f61cb0a89cf429
+
+########## Ollama, processor only
+# The upstream image is about 5 GB, nearly all of it graphics-card libraries
+# (CUDA, MLX, Vulkan) that no AVADO box can use. Only the program and the
+# processor libraries (one per processor generation; Ollama picks the best
+# one at start) are kept: about 70 MB.
+FROM --platform=linux/amd64 ${OLLAMA_IMAGE} AS ollama
+RUN set -eux; \
+    mkdir -p /out/bin /out/lib/ollama; \
+    cp -a /usr/bin/ollama /out/bin/ollama; \
+    find /usr/lib/ollama -maxdepth 1 \( -type f -o -type l \) -exec cp -a {} /out/lib/ollama/ \; ; \
+    test -e /out/lib/ollama/libggml-cpu-x64.so; \
+    test -e /out/lib/ollama/libggml-cpu-zen4.so; \
+    test -e /out/lib/ollama/libggml-base.so.0; \
+    ! test -e /out/lib/ollama/cuda_v12
+
+########## Setup helper tests (a failing test fails the image build)
+FROM --platform=linux/amd64 ${OPENWEBUI_IMAGE} AS test
+COPY build/setup /opt/avado/setup
+RUN cd /opt/avado/setup && python3 -I -m unittest discover -s tests -v 2>&1 | tail -n 5 \
+    && python3 -I -m unittest discover -s tests >/dev/null 2>&1 \
+    && rm -rf tests __pycache__
+
+########## Runtime
+FROM --platform=linux/amd64 ${OPENWEBUI_IMAGE}
+
+# nginx: the only listener on the AVADO network. tini: PID 1, passes the stop
+# signal on and collects finished processes.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends nginx tini \
+    && rm -rf /var/lib/apt/lists/* /etc/nginx/sites-enabled /etc/nginx/conf.d /var/www/html
+
+COPY --from=ollama /out/bin/ollama /usr/local/bin/ollama
+COPY --from=ollama /out/lib/ollama /usr/local/lib/ollama
+COPY --from=test /opt/avado/setup /opt/avado/setup
+COPY build/nginx/nginx.conf /etc/nginx/nginx.conf
+COPY build/nginx/avado-starting.html /opt/avado/nginx/avado-starting.html
+COPY build/avado-start build/avado-ollama /usr/local/bin/
+# Licence texts of the two upstream programs (their copyright notices travel with the image).
+COPY build/licenses/ /usr/share/doc/avado-assistant/
+
+# The unprivileged user everything but nginx's master process runs as. Folders
+# that start a new volume are owned by it, so the volumes are too.
+COPY dappnode_package.json /tmp/dappnode_package.json
+RUN set -eux; \
+    useradd --system --uid 10001 --user-group --home-dir /models --no-create-home --shell /usr/sbin/nologin assistant; \
+    mkdir -p /models/models /app/backend/data/avado; \
+    chown -R assistant:assistant /models /app/backend/data /app/backend/open_webui/static; \
+    python3 -c 'import json,re,sys; v=json.load(open("/tmp/dappnode_package.json"))["version"]; \
+        sys.exit("bad package version") if not re.fullmatch(r"[0-9A-Za-z.+-]+", v or "") else None; \
+        open("/opt/avado/package-version","w").write(v+"\n")'; \
+    rm /tmp/dappnode_package.json; \
+    chmod 755 /usr/local/bin/avado-start /usr/local/bin/avado-ollama; \
+    nginx -t; \
+    /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.13"; \
+    test -f /opt/avado/setup/public/index.html; \
+    ! test -e /opt/avado/setup/tests
+
+# Ollama: on the box only (127.0.0.1), models in the models volume, never the
+# cloud, one answer at a time, unloaded after 10 minutes without use.
+# Open WebUI: sign-in required; the first account becomes the owner and closes
+# sign-up (the owner adds other people in Open WebUI's admin panel),
+# no cloud AI connections, no update checks or sharing, and none of the extra
+# background answers (follow-up questions, tags, search queries) that would
+# make every chat slower on a processor. A document added to a chat is given
+# to the model whole ("full context"): the slim image stores document search
+# data only in an external PostgreSQL server, which the box does not have.
+ENV OLLAMA_HOST=127.0.0.1:11434 \
+    OLLAMA_MODELS=/models/models \
+    OLLAMA_NO_CLOUD=1 \
+    OLLAMA_KEEP_ALIVE=10m \
+    OLLAMA_NUM_PARALLEL=1 \
+    OLLAMA_MAX_LOADED_MODELS=2 \
+    OLLAMA_MAX_QUEUE=16 \
+    OLLAMA_CONTEXT_LENGTH=16384 \
+    WEBUI_URL=http://assistant.my.ava.do \
+    OLLAMA_BASE_URL=http://127.0.0.1:11434 \
+    USE_OLLAMA_DOCKER=false \
+    WEBUI_AUTH=true \
+    ENABLE_SIGNUP=false \
+    DEFAULT_USER_ROLE=pending \
+    ENABLE_OPENAI_API=false \
+    ENABLE_DIRECT_CONNECTIONS=false \
+    ENABLE_VERSION_UPDATE_CHECK=false \
+    OFFLINE_MODE=true \
+    ENABLE_COMMUNITY_SHARING=false \
+    ENABLE_FOLLOW_UP_GENERATION=false \
+    ENABLE_TAGS_GENERATION=false \
+    ENABLE_AUTOCOMPLETE_GENERATION=false \
+    ENABLE_SEARCH_QUERY_GENERATION=false \
+    ENABLE_RETRIEVAL_QUERY_GENERATION=false \
+    ENABLE_CODE_INTERPRETER=false \
+    ENABLE_EVALUATION_ARENA_MODELS=false \
+    BYPASS_EMBEDDING_AND_RETRIEVAL=true \
+    CORS_ALLOW_ORIGIN=http://assistant.my.ava.do \
+    AVADO_STATE_DIR=/app/backend/data/avado \
+    AVADO_VERSION_FILE=/opt/avado/package-version \
+    AUTO_DOWNLOAD=yes
+
+WORKDIR /app/backend
+EXPOSE 80
+ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
+CMD ["/usr/local/bin/avado-start"]

@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en" data-theme="dark">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AVADO Private Assistant</title>
+    <link rel="icon" href="/avado/favicon.png" />
+    <link rel="stylesheet" href="/avado/theme.css" />
+    <link rel="stylesheet" href="/avado/base.css" />
+    <link rel="stylesheet" href="/avado/style.css" />
+    <script src="/avado/app.js" defer></script>
+  </head>
+  <body>
+    <main class="shell">
+      <header class="top">
+        <span class="brand">AVADO <strong>Private Assistant</strong></span>
+        <span class="version" id="version"></span>
+      </header>
+
+      <section class="card verdict" id="status" data-level="info" aria-live="polite">
+        <span class="dot" aria-hidden="true"></span>
+        <div class="grow">
+          <h1 id="headline">Loading…</h1>
+          <p id="detail" class="muted"></p>
+          <div class="progress" id="progress" hidden>
+            <div class="bar"><span id="bar"></span></div>
+            <p id="progress-text" class="small"></p>
+          </div>
+          <p id="problem" class="notice" hidden></p>
+          <div class="actions" id="main-actions">
+            <a class="button" id="open" href="/" target="_blank" rel="noopener" hidden>Open the assistant</a>
+            <a class="button" id="signup" href="/auth" target="_blank" rel="noopener" hidden>Create your account</a>
+            <button type="button" class="button ghost" id="retry" hidden>Try again</button>
+            <button type="button" class="button ghost" id="cancel" hidden>Stop the download</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="card" id="account" hidden>
+        <h2>First: make your account</h2>
+        <p>
+          The first account made here becomes the owner of the assistant. Make it now, so nobody else on your network can.
+          After that, nobody else can make an account. To let family members use the assistant, add them yourself (in the assistant: Admin panel, Users).
+        </p>
+        <p class="muted small">You can do this while the model is still downloading.</p>
+      </section>
+
+      <section class="card" id="speed-card" hidden>
+        <h2>How fast is it on this box?</h2>
+        <p id="speed-text"></p>
+        <div class="actions">
+          <button type="button" class="button ghost small" id="speedtest">Measure again</button>
+        </div>
+      </section>
+
+      <section class="card">
+        <h2>Model</h2>
+        <p class="muted" id="box-line"></p>
+        <p class="notice info" id="signin-hint" hidden>
+          To change the model, <a href="/auth" target="_blank" rel="noopener">sign in to the assistant</a> with the owner account first, then come back to this page.
+        </p>
+        <ul class="models" id="models"></ul>
+      </section>
+
+      <section class="card">
+        <h2>Good to know</h2>
+        <ul class="facts-list">
+          <li><strong>Private.</strong> Your chats and documents stay on this box. Nothing is sent to an AI company. The box only goes online to download models and updates.</li>
+          <li><strong>It runs on the processor.</strong> It does not use a graphics chip (no AVADO box can use one for AI yet), so answers come at a steady pace, not instantly. When you add a document to a chat, the assistant reads all of it first, so a long document can take a few minutes before the answer starts.</li>
+          <li><strong>Your node comes first.</strong> While the assistant is answering, your other apps get priority, and the model is unloaded from memory after 10 minutes without use. The first answer after a pause takes longer while the model loads again.</li>
+          <li><strong>Bigger is smarter, but needs more.</strong> Big models need a lot of memory and free space. The page suggests the biggest one that fits next to your node.</li>
+          <li><strong>It can be wrong.</strong> Check important answers, especially about money, health or law.</li>
+        </ul>
+      </section>
+    </main>
+  </body>
+</html>

@@ -1,0 +1,32 @@
+{
+  "name": "assistant.avado.dnp.dappnode.eth",
+  "version": "0.1.0",
+  "title": "Private Assistant",
+  "description": "Your own AI chat assistant, running entirely on your AVADO. Ask questions, get help with writing, or let it read a document for you. Your chats and files stay on your box: nothing is sent to an AI company.\n\nOn first start it picks a model that suits your box's memory and downloads it. Models are big (about 2.5 GB on a 32 GB box, about 19 GB on a 64 GB box), so with normal home internet this takes from a few minutes to about an hour. The page shows how far it is.\n\nBe aware: the assistant does not use a graphics chip (no AVADO box can use one for AI yet), so it runs on the processor and is slower than ChatGPT. Answers appear word by word at a steady pace, not instantly, and the first answer after a pause takes longer while the model loads. After the download the page measures how fast it is on your box. Your Ethereum node always comes first: it gets the processor before the assistant, and if memory ever runs short the assistant is stopped, not the node.\n\nThe assistant is protected by your own account: the first account you create becomes the owner, and nobody else can make an account unless you add them. It can make mistakes, so check important answers.",
+  "shortDescription": "Your own AI chat assistant, private on your box",
+  "type": "service",
+  "avadocategory": "thelab",
+  "autoupdate": true,
+  "image": {
+    "volumes": [
+      "assistant_models:/models",
+      "assistant_data:/app/backend/data"
+    ],
+    "ports": [],
+    "restart": "always"
+  },
+  "author": "AVADO",
+  "license": "GPL-3.0",
+  "dependencies": {},
+  "links": {
+    "OnboardingWizard": "http://assistant.my.ava.do/avado/",
+    "Open the assistant": "http://assistant.my.ava.do",
+    "HomePage": "https://ava.do"
+  },
+  "ui": {
+    "OnboardingWizard": {
+      "url": "http://assistant.my.ava.do",
+      "external": true
+    }
+  }
+}

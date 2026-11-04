@@ -1,0 +1,14 @@
+version: '3.4'
+services:
+  assistant.avado.dnp.dappnode.eth:
+    image: 'assistant.avado.dnp.dappnode.eth:0.1.0'
+    build:
+      context: .
+      dockerfile: build/Dockerfile
+    volumes:
+      - 'assistant_models:/models'
+      - 'assistant_data:/app/backend/data'
+    restart: always
+volumes:
+  assistant_models: {}
+  assistant_data: {}

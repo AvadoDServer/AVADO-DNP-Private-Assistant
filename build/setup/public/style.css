@@ -1,0 +1,138 @@
+/* Private Assistant setup page, on top of base.css. Colours come from theme.css (the Admin's tokens). */
+[hidden] {
+  display: none !important;
+}
+
+.grow {
+  flex: 1;
+  min-width: 0;
+}
+
+.small {
+  font-size: 0.88rem;
+}
+
+.progress {
+  margin-top: var(--space-md);
+}
+
+.progress .bar {
+  height: 0.6rem;
+  border-radius: var(--radius-full);
+  background: rgb(var(--bg-inset));
+  border: 1px solid rgb(var(--border));
+  overflow: hidden;
+}
+
+.progress .bar span {
+  display: block;
+  height: 100%;
+  width: 1%;
+  background: rgb(var(--accent));
+  transition: width 0.6s ease;
+}
+
+.progress p {
+  margin-top: 0.35rem;
+}
+
+.notice.info {
+  background: rgb(var(--bg-inset));
+}
+
+.button.ghost {
+  background: transparent;
+  color: rgb(var(--fg));
+  border: 1px solid rgb(var(--border));
+}
+
+.button.ghost:hover {
+  background: rgb(var(--surface-hover));
+}
+
+.button.small {
+  padding: 0.35rem 0.8rem;
+  font-size: 0.9rem;
+}
+
+a.button {
+  text-decoration: none;
+  display: inline-block;
+}
+
+.models {
+  list-style: none;
+  margin: var(--space-md) 0 0;
+  padding: 0;
+  display: grid;
+  gap: var(--space-sm);
+}
+
+.models li {
+  border: 1px solid rgb(var(--border));
+  border-radius: var(--radius-control);
+  padding: 0.75rem 0.9rem;
+  background: rgb(var(--surface-raised));
+}
+
+.models li[data-state="active"] {
+  border-color: rgb(var(--success));
+}
+
+.models li[data-state="unavailable"] {
+  opacity: 0.7;
+}
+
+.models .row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem 0.8rem;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.models .about {
+  margin-top: 0.3rem;
+  font-size: 0.95rem;
+}
+
+.models .note {
+  margin-top: 0.3rem;
+  color: rgb(var(--warning-text));
+}
+
+.models .actions {
+  margin-top: 0.6rem;
+}
+
+.badges {
+  display: flex;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.badge {
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.12rem 0.55rem;
+  border-radius: var(--radius-full);
+  border: 1px solid rgb(var(--border));
+  color: rgb(var(--fg-muted));
+}
+
+.badge.active {
+  border-color: rgb(var(--success));
+  color: rgb(var(--success-text));
+}
+
+.badge.suggested {
+  border-color: rgb(var(--accent));
+  color: rgb(var(--accent));
+}
+
+.facts-list {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.2rem;
+  display: grid;
+  gap: 0.45rem;
+}
