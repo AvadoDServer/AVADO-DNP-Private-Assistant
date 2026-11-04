@@ -1,68 +1,63 @@
 {
-  "_comment": "Models the Private Assistant offers. download_bytes = sum of the layers in the Ollama library manifest (checked 2026-11-04 on registry.ollama.ai); the page uses it until Ollama reports the real total. min_ram_gib = smallest box (memory as Linux reports it, in GiB: a 32 GB box shows about 30, 64 GB about 62, 96 GB about 93, 128 GB about 123) that may use the model next to an Ethereum node, which needs about 20-25 GB itself. recommend_from_gib = from which box size it is the automatic choice (null: only on request). think = what the speed test sends as Ollama's think value (gpt-oss always thinks and takes a level).",
+  "_comment": "Models the Private Assistant offers: the newest open models, checked live on ollama.com/library on 2026-11-04. download_bytes = sum of the layers in the Ollama library manifest (registry.ollama.ai); the page uses it until Ollama reports the real total. ram_need_gib = memory the model takes while it answers (measured: Ollama's model runner at an 8k context, KV cache included; the 26B is an estimate). auto = the setup page may suggest it (the biggest auto model that fits the memory budget); the others are offered on request only. Nothing is downloaded until the owner presses the button. Every model gets think:false (all of them think by default in Ollama, which is very slow on a processor). sizing: budget = min(free memory now, lowest free memory in the last 7 days) - margin_gib - webui_gib - cache_gib; below min_free_gib of free memory nothing is suggested; a paused model is used again once free memory is resume_extra_gib above the line.",
   "reserve_disk_gb": 50,
+  "sizing": {
+    "margin_gib": 4,
+    "webui_gib": 0.5,
+    "cache_gib": 1,
+    "min_free_gib": 7.5,
+    "resume_extra_gib": 1
+  },
   "models": [
     {
       "id": "tiny",
-      "tag": "qwen3:1.7b",
-      "name": "Qwen3 1.7B",
+      "tag": "lfm3:1.7b",
+      "name": "LFM3 1.7B",
       "label": "Very small",
-      "download_bytes": 1359292957,
-      "min_ram_gib": 0,
-      "recommend_from_gib": 0,
-      "about": "Light and quick. Fine for short questions and simple writing help, but it makes more mistakes than the bigger models."
+      "download_bytes": 1099638680,
+      "ram_need_gib": 1.5,
+      "auto": true,
+      "about": "Tiny and very quick, for short questions. It makes more mistakes and is weaker in Slovenian."
     },
     {
       "id": "small",
-      "tag": "qwen3:4b-instruct-2507-q4_K_M",
-      "name": "Qwen3 4B",
+      "tag": "qwen3.5:4b",
+      "name": "Qwen3.5 4B",
       "label": "Small",
-      "download_bytes": 2497293316,
-      "min_ram_gib": 12,
-      "recommend_from_gib": 20,
-      "about": "Small and quick. Good for everyday questions, short summaries and writing help."
+      "download_bytes": 3324173934,
+      "ram_need_gib": 4.2,
+      "auto": true,
+      "about": "Small and quick. Good for everyday questions, short summaries and writing help, also in Slovenian."
     },
     {
-      "id": "thinker",
-      "tag": "gpt-oss:20b",
-      "name": "gpt-oss 20B",
-      "label": "Medium, thinks first",
-      "download_bytes": 13793441427,
-      "min_ram_gib": 40,
-      "recommend_from_gib": null,
-      "think": "low",
-      "about": "OpenAI's open model. It thinks before it answers, so the first words take longer, but it is better at step-by-step problems."
+      "id": "gemma-small",
+      "tag": "gemma4:e4b-it-qat",
+      "name": "Gemma 4 E4B",
+      "label": "Small, quick follow-ups",
+      "download_bytes": 6146501801,
+      "ram_need_gib": 6.7,
+      "auto": false,
+      "about": "Google's small model. About as smart as Qwen3.5 4B and needs more memory, but answers follow-up questions sooner."
     },
     {
       "id": "medium",
-      "tag": "qwen3:30b-a3b-instruct-2507-q4_K_M",
-      "name": "Qwen3 30B",
+      "tag": "qwen3.5:9b",
+      "name": "Qwen3.5 9B",
       "label": "Medium",
-      "download_bytes": 18556698692,
-      "min_ram_gib": 44,
-      "recommend_from_gib": 44,
-      "about": "Much smarter than the small models and still quick, because it only uses a small part of itself for each word."
-    },
-    {
-      "id": "big",
-      "tag": "qwen3-next:80b-a3b-instruct-q4_K_M",
-      "name": "Qwen3-Next 80B",
-      "label": "Big",
-      "download_bytes": 50075048773,
-      "min_ram_gib": 80,
-      "recommend_from_gib": 80,
-      "about": "Knows a lot more than the medium models and is about as quick, because it also uses only a small part of itself for each word. For boxes with 96 GB of memory or more."
+      "download_bytes": 6550825550,
+      "ram_need_gib": 6.7,
+      "auto": true,
+      "about": "Clearly smarter than the small models and still fine for chatting. The best at explaining your box."
     },
     {
       "id": "large",
-      "tag": "gpt-oss:120b",
-      "name": "gpt-oss 120B",
+      "tag": "gemma4:26b-a4b-it-qat",
+      "name": "Gemma 4 26B",
       "label": "Large",
-      "download_bytes": 65369819443,
-      "min_ram_gib": 100,
-      "recommend_from_gib": 112,
-      "think": "low",
-      "about": "The smartest choice, for boxes with 128 GB of memory. It thinks before it answers and is slower than the medium models."
+      "download_bytes": 15634199946,
+      "ram_need_gib": 17,
+      "auto": false,
+      "about": "The smartest model that fits next to an Ethereum node, and still quick. Needs about 20 GB of free memory."
     }
   ]
 }

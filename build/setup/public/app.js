@@ -13,7 +13,6 @@
   var state = null;
   var timer = null;
   var busy = false;
-  var opened = false;
 
   function $(id) {
     return document.getElementById(id);
@@ -130,12 +129,22 @@
         break;
       case "no-space":
         headline = "Not enough free space";
-        detail = "Free up space on the box, then choose a model under More options.";
+        detail = "Free up space on the box. This page checks again by itself.";
+        level = "warning";
+        break;
+      case "no-memory":
+        headline = "Not enough free memory";
+        detail = "Your Ethereum node needs the memory now, so nothing is downloaded. This page checks again by itself.";
         level = "warning";
         break;
       case "choose":
-        headline = "Choose a model";
-        detail = "The assistant needs a model before it can answer. Pick one under More options.";
+        if (s.onboarding === true) {
+          headline = "Two steps to your assistant";
+          detail = "Create your account, then get the AI model.";
+        } else {
+          headline = "One step left: get the AI model";
+          detail = "Nothing is downloaded until you press the button.";
+        }
         break;
       case "ready":
         if (s.onboarding === true) {
@@ -151,6 +160,11 @@
         headline = "The assistant is starting";
         detail = "This takes about a minute after the box or the app starts.";
     }
+    if (s.paused && s.ready) {
+      headline = "Paused so your Ethereum node has enough memory";
+      detail = "The assistant starts again by itself when enough memory is free.";
+      level = "warning";
+    }
     if (s.phase === "downloading" && s.ready) {
       detail = "Your assistant keeps using " + s.active + " until this download is done. " + detail;
     }
@@ -165,7 +179,7 @@
       $("progress-text").textContent = p.percent + "%";
     }
 
-    if (s.problem && (s.phase === "retrying" || s.phase === "error" || s.phase === "no-space")) {
+    if (s.problem && (s.phase === "retrying" || s.phase === "error")) {
       $("problem").textContent = s.problem;
       $("problem").hidden = false;
     }
@@ -178,25 +192,33 @@
       : "The first account becomes the owner. After that, nobody else can sign up.";
     show("signup", s.onboarding === true);
 
-    // Step 2: the model
+    // Step 2: the model (downloaded only when the owner presses the button)
     step(2, !!s.ready, "Done");
-    var t2;
+    var t2, sug = s.suggestion;
     if (s.phase === "downloading" || s.phase === "retrying") {
       t2 = "Downloading " + (s.target || "the model") + ". It goes on by itself, also when you close this page.";
     } else if (s.ready) {
       t2 = s.active + " is on this box.";
-    } else if (s.phase === "choose" || s.phase === "no-space" || s.phase === "error") {
-      t2 = "Choose a model under More options.";
+    } else if (s.phase === "no-memory") {
+      t2 = "Not now: your node needs the memory.";
+    } else if (s.phase === "no-space") {
+      t2 = "The model needs its download size plus 50 GB of free space on the box.";
+    } else if (sug) {
+      t2 = "Suggested for your box: " + sug.name + " (" + sug.size_plain + " download).";
+    } else if (s.phase === "starting") {
+      t2 = "Checking how much memory your AVADO can spare…";
     } else {
-      t2 = "The box downloads it by itself.";
+      t2 = "Choose a model under More options.";
     }
     $("step-2-text").textContent = t2;
-    show("retry", s.phase === "error" && !!s.failed && s.can_change);
+    $("memory-text").textContent = s.memory_sentence || "";
+    show("memory-text", !!s.memory_sentence && !(s.phase === "downloading" || s.phase === "retrying"));
+    var canGet = !s.ready && !!sug && (s.phase === "choose" || s.phase === "error");
+    $("get").textContent = sug ? "Download " + sug.name : "Download";
+    show("get", canGet && s.can_change);
+    show("signin", canGet && !s.can_change && s.onboarding === false);
+    show("retry", s.phase === "error" && !!s.failed && s.can_change && (!sug || s.failed !== sug.id));
     show("cancel", (s.phase === "downloading" || s.phase === "retrying") && s.can_change);
-    if ((s.phase === "choose" || s.phase === "no-space") && !opened) {
-      $("more").open = true;
-      opened = true;
-    }
 
     // Step 3: chat
     var canChat = !!s.ready && accountDone;
@@ -232,8 +254,8 @@
       else list.appendChild(modelRow(m, s));
     });
     $("hidden-models").textContent = left === s.models.length
-      ? "No model fits this box right now: it needs more free space or memory."
-      : "Bigger models are not shown: this box does not have the memory or free space for them.";
+      ? "No model fits next to your node right now: it needs more free memory or space."
+      : "Bigger models are not shown: they need more free memory or space than your box can spare.";
     show("hidden-models", left > 0);
   }
 
@@ -246,7 +268,7 @@
   function modelRow(m, s) {
     var title = el("div", { class: "title" }, [
       el("strong", { text: m.name }),
-      el("span", { class: "muted", text: " · " + m.label + " · " + m.size_plain }),
+      el("span", { class: "muted", text: " · " + m.size_plain + (m.uses_plain ? " · uses about " + m.uses_plain + " of memory" : "") }),
     ]);
     var badges = el("div", { class: "badges" });
     if (STATE_WORDS[m.state]) badges.appendChild(el("span", { class: "badge " + m.state, text: STATE_WORDS[m.state] }));
@@ -261,7 +283,7 @@
       if (m.state === "available") {
         var b = el("button", { type: "button", class: "button small", text: "Download and use" });
         b.addEventListener("click", function () {
-          var msg = "Download " + m.name + " (" + m.size_plain + ")? With normal home internet this takes from a few minutes to about an hour.";
+          var msg = "Download " + m.name + " (" + m.size_plain + ")? It uses about " + m.uses_plain + " of memory while it answers. With normal home internet the download takes from a few minutes to about an hour.";
           if (window.confirm(msg)) post("/avado/api/choose", { id: m.id });
         });
         actions.appendChild(b);
@@ -284,6 +306,12 @@
     return li;
   }
 
+  $("get").addEventListener("click", function () {
+    var sug = state && state.suggestion;
+    if (!sug) return;
+    var msg = "Download " + sug.name + " (" + sug.size_plain + ")? It uses about " + sug.uses_plain + " of memory while it answers. With normal home internet the download takes from a few minutes to about an hour.";
+    if (window.confirm(msg)) post("/avado/api/choose", { id: sug.id });
+  });
   $("retry").addEventListener("click", function () {
     if (state && state.failed) post("/avado/api/choose", { id: state.failed });
   });

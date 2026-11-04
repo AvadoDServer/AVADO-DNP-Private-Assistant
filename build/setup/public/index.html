@@ -39,8 +39,11 @@
           </li>
           <li id="step-2">
             <div class="step-head"><span class="step-title">Get the AI model</span><span class="tick" id="tick-2"></span></div>
-            <p id="step-2-text">The box downloads it by itself.</p>
+            <p id="step-2-text">Checking how much memory your AVADO can spare…</p>
+            <p id="memory-text" class="muted small" hidden></p>
             <div class="actions">
+              <button type="button" class="button" id="get" hidden>Download</button>
+              <a class="button ghost" id="signin" href="/auth" target="_blank" rel="noopener" hidden>Sign in first</a>
               <button type="button" class="button ghost" id="retry" hidden>Try again</button>
               <button type="button" class="button ghost" id="cancel" hidden>Stop the download</button>
             </div>
@@ -63,7 +66,7 @@
             To change the model, <a href="/auth" target="_blank" rel="noopener">sign in to the assistant</a> with the owner account, then come back to this page.
           </p>
           <ul class="models" id="models"></ul>
-          <p class="muted small" id="hidden-models" hidden>Bigger models are not shown: this box does not have the memory or free space for them.</p>
+          <p class="muted small" id="hidden-models" hidden></p>
         </div>
 
         <div class="more-item" id="speed-card" hidden>
@@ -82,8 +85,9 @@
           <ul class="facts-list small">
             <li><strong>Private.</strong> Your chats and documents stay on this box. Nothing is sent to an AI company. The box only goes online to download models and updates.</li>
             <li><strong>It runs on the processor.</strong> It does not use a graphics chip (no AVADO box can use one for AI yet), so answers come at a steady pace, not instantly. When you add a document to a chat, the assistant reads all of it first, so a long document can take a few minutes before the answer starts.</li>
-            <li><strong>Your node comes first.</strong> While the assistant is answering, your other apps get priority, and the model is unloaded from memory after 10 minutes without use. The first answer after a pause takes longer while the model loads again.</li>
-            <li><strong>Bigger is smarter, but needs more.</strong> Big models need a lot of memory and free space. The page suggests the biggest one that fits next to your node.</li>
+            <li><strong>Your node comes first.</strong> The assistant uses half the processor at most and keeps at least 4 GB of memory free for your node. If your node needs more, the assistant pauses by itself. After 10 minutes without use the model leaves memory; the next answer then takes a little longer.</li>
+            <li><strong>It knows your box.</strong> Every chat gets a short summary of this AVADO (apps, memory, disk, sync, validators), so you can ask "Is my validator OK?". It only reads; it cannot change anything.</li>
+            <li><strong>Bigger is smarter, but needs more.</strong> The page suggests the biggest model that fits next to your node, measured at its busiest moment in the last 7 days.</li>
             <li><strong>It can be wrong.</strong> Check important answers, especially about money, health or law.</li>
           </ul>
         </div>

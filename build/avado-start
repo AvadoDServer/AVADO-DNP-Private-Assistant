@@ -71,16 +71,21 @@ stop_all() {
 }
 trap stop_all TERM INT
 
-# Models get a lower priority than every other app on the box, so the
-# Ethereum node always comes first.
-keep ollama "${AS_APP[@]}" nice -n 15 ionice -c2 -n7 /usr/local/bin/avado-ollama &
+# Models get a lower priority than every other app on the box (nice 10, the
+# lowest disk priority), so the Ethereum node always comes first. They also use
+# at most half the processor threads (num_thread, set through Open WebUI and the
+# setup helper's speed test).
+THREADS=$(( $(nproc) / 2 ))
+[ "$THREADS" -ge 1 ] || THREADS=1
+export DEFAULT_MODEL_PARAMS="{\"think\":false,\"num_thread\":$THREADS}"
+keep ollama "${AS_APP[@]}" nice -n 10 ionice -c2 -n7 /usr/local/bin/avado-ollama &
 pids+=($!)
 
 keep avado-setup "${AS_APP[@]}" python3 /opt/avado/setup/avado_setup.py &
 pids+=($!)
 
-# Open WebUI is seeded with the first model the helper picks, on its very first
-# start only (after that it keeps its settings in its database).
+# Open WebUI is seeded with the model already on the box (if any), on its very
+# first start only (after that it keeps its settings in its database).
 if [ ! -e "$DATA/webui.db" ]; then
     for _ in $(seq 1 40); do
         [ -e "$STATE/state.json" ] && break
@@ -97,7 +102,7 @@ start_webui() {
     cd /app/backend || exit 1
     # A lower priority too (reading a document a person adds takes processor
     # time), but above the model, so the chat page itself stays quick.
-    WEBUI_SECRET_KEY=$(cat "$KEY_FILE") HOME=$DATA/cache/home exec "${AS_APP[@]}" nice -n 10 \
+    WEBUI_SECRET_KEY=$(cat "$KEY_FILE") HOME=$DATA/cache/home exec "${AS_APP[@]}" nice -n 5 \
         python3 -m uvicorn open_webui.main:app --host 127.0.0.1 --port 8080 \
         --forwarded-allow-ips 127.0.0.1 --workers 1 --ws-per-message-deflate true
 }
