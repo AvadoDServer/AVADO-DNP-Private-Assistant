@@ -1,0 +1,10 @@
+#!/bin/bash
+# Runs `ollama serve` for the Private Assistant (started by avado-start as the
+# app user, with a low priority). Ollama keeps its key and caches next to the
+# models, and the log leaves out the setup helper's routine checks (every 30
+# seconds), so the app's log in the Admin shows what matters.
+export HOME=/models
+# If the box ever runs short of memory, Linux stops the model first, not the
+# Ethereum node (raising one's own score needs no special rights).
+echo 1000 > /proc/self/oom_score_adj 2>/dev/null || true
+exec /usr/local/bin/ollama serve > >(exec grep --line-buffered -vE '"/api/(version|tags)"$') 2>&1

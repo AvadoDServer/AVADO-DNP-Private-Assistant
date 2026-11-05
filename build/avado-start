@@ -1,0 +1,115 @@
+#!/bin/bash
+# AVADO Private Assistant: starts and watches the four parts of the package.
+#
+#   ollama      runs the models (127.0.0.1:11434, never reachable from outside)
+#   avado-setup picks and downloads the model, serves the setup page (127.0.0.1:8090)
+#   open-webui  the chat (127.0.0.1:8080)
+#   nginx       the only thing listening on the AVADO network (port 80)
+#
+# tini (PID 1) passes a stop signal to the whole process group. Each part runs
+# in its own loop that starts it again if it stops, unless the package is stopping.
+set -u
+
+DATA=/app/backend/data
+STATE=$DATA/avado
+MODELS=/models
+APP_USER=assistant
+
+log() { echo "avado-start: $*"; }
+
+# A fresh volume gets the image's owner; an older one may not have it.
+mkdir -p "$STATE" "$MODELS/models" "$DATA/cache/home" /run/avado
+chown "$APP_USER:$APP_USER" "$DATA" "$STATE" "$MODELS" "$MODELS/models" "$DATA/cache" "$DATA/cache/home"
+# nginx (www-data) checks the ready flag: it may pass through the data folder
+# but not list it, and may read only the avado folder.
+chmod 711 "$DATA"
+chmod 755 "$STATE"
+
+# Sign-in secret for Open WebUI, kept in the volume so an update or restart
+# does not sign everybody out.
+KEY_FILE=$DATA/.webui_secret_key
+if [ ! -s "$KEY_FILE" ]; then
+    head -c 32 /dev/urandom | base64 > "$KEY_FILE"
+fi
+chown "$APP_USER:$APP_USER" "$KEY_FILE"
+chmod 600 "$KEY_FILE"
+
+# Everything but nginx's master process runs as the unprivileged app user,
+# without any capabilities.
+AS_APP=(setpriv --reuid="$APP_USER" --regid="$APP_USER" --init-groups --inh-caps=-all --bounding-set=-all --)
+
+# keep NAME CMD...: run CMD, start it again after it stops (a short pause that
+# grows when it keeps failing), until the package stops.
+keep() {
+    local name=$1
+    shift
+    local stopping=0 child=0 pause=2 started
+    trap 'stopping=1; [ "$child" -gt 0 ] && kill -TERM "$child" 2>/dev/null' TERM INT
+    while [ "$stopping" -eq 0 ]; do
+        started=$SECONDS
+        "$@" &
+        child=$!
+        wait "$child"
+        local code=$?
+        # wait returns early when a signal arrives; wait for the real exit
+        while kill -0 "$child" 2>/dev/null; do wait "$child"; done
+        child=0
+        [ "$stopping" -eq 1 ] && break
+        if [ $((SECONDS - started)) -gt 60 ]; then pause=2; else pause=$((pause < 60 ? pause * 2 : 60)); fi
+        log "$name stopped (exit $code), starting it again in ${pause}s"
+        sleep "$pause" &
+        wait $! 2>/dev/null
+    done
+}
+
+pids=()
+stop_all() {
+    log "stopping"
+    for p in "${pids[@]}"; do kill -TERM "$p" 2>/dev/null; done
+    wait
+    exit 0
+}
+trap stop_all TERM INT
+
+# Models get a lower priority than every other app on the box (nice 10, the
+# lowest disk priority), so the Ethereum node always comes first. They also use
+# at most half the processor threads (num_thread, set through Open WebUI and the
+# setup helper's speed test).
+THREADS=$(( $(nproc) / 2 ))
+[ "$THREADS" -ge 1 ] || THREADS=1
+export DEFAULT_MODEL_PARAMS="{\"think\":false,\"num_thread\":$THREADS}"
+keep ollama "${AS_APP[@]}" nice -n 10 ionice -c2 -n7 /usr/local/bin/avado-ollama &
+pids+=($!)
+
+keep avado-setup "${AS_APP[@]}" python3 /opt/avado/setup/avado_setup.py &
+pids+=($!)
+
+# Open WebUI is seeded with the model already on the box (if any), on its very
+# first start only (after that it keeps its settings in its database).
+if [ ! -e "$DATA/webui.db" ]; then
+    for _ in $(seq 1 40); do
+        [ -e "$STATE/state.json" ] && break
+        sleep 0.25
+    done
+    if [ -s "$STATE/default-model" ]; then
+        export DEFAULT_MODELS
+        DEFAULT_MODELS=$(head -n1 "$STATE/default-model")
+        log "first start, new chats will use $DEFAULT_MODELS"
+    fi
+fi
+
+start_webui() {
+    cd /app/backend || exit 1
+    # A lower priority too (reading a document a person adds takes processor
+    # time), but above the model, so the chat page itself stays quick.
+    WEBUI_SECRET_KEY=$(cat "$KEY_FILE") HOME=$DATA/cache/home exec "${AS_APP[@]}" nice -n 5 \
+        python3 -m uvicorn open_webui.main:app --host 127.0.0.1 --port 8080 \
+        --forwarded-allow-ips 127.0.0.1 --workers 1 --ws-per-message-deflate true
+}
+keep open-webui start_webui &
+pids+=($!)
+
+keep nginx nginx -g 'daemon off;' &
+pids+=($!)
+
+wait

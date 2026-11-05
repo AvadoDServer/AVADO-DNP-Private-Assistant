@@ -1,0 +1,63 @@
+{
+  "_comment": "Models the Private Assistant offers: the newest open models, checked live on ollama.com/library on 2026-11-04. download_bytes = sum of the layers in the Ollama library manifest (registry.ollama.ai); the page uses it until Ollama reports the real total. ram_need_gib = memory the model takes while it answers (measured: Ollama's model runner at an 8k context, KV cache included; the 26B is an estimate). auto = the setup page may suggest it (the biggest auto model that fits the memory budget); the others are offered on request only. Nothing is downloaded until the owner presses the button. Every model gets think:false (all of them think by default in Ollama, which is very slow on a processor). sizing: budget = min(free memory now, lowest free memory in the last 7 days) - margin_gib - webui_gib - cache_gib; below min_free_gib of free memory nothing is suggested; a paused model is used again once free memory is resume_extra_gib above the line.",
+  "reserve_disk_gb": 50,
+  "sizing": {
+    "margin_gib": 4,
+    "webui_gib": 0.5,
+    "cache_gib": 1,
+    "min_free_gib": 7.5,
+    "resume_extra_gib": 1
+  },
+  "models": [
+    {
+      "id": "tiny",
+      "tag": "lfm3:1.7b",
+      "name": "LFM3 1.7B",
+      "label": "Very small",
+      "download_bytes": 1099638680,
+      "ram_need_gib": 1.5,
+      "auto": true,
+      "about": "Tiny and very quick, for short questions. It makes more mistakes and is weaker in Slovenian."
+    },
+    {
+      "id": "small",
+      "tag": "qwen3.5:4b",
+      "name": "Qwen3.5 4B",
+      "label": "Small",
+      "download_bytes": 3324173934,
+      "ram_need_gib": 4.2,
+      "auto": true,
+      "about": "Small and quick. Good for everyday questions, short summaries and writing help, also in Slovenian."
+    },
+    {
+      "id": "gemma-small",
+      "tag": "gemma4:e4b-it-qat",
+      "name": "Gemma 4 E4B",
+      "label": "Small, quick follow-ups",
+      "download_bytes": 6146501801,
+      "ram_need_gib": 6.7,
+      "auto": false,
+      "about": "Google's small model. About as smart as Qwen3.5 4B and needs more memory, but answers follow-up questions sooner."
+    },
+    {
+      "id": "medium",
+      "tag": "qwen3.5:9b",
+      "name": "Qwen3.5 9B",
+      "label": "Medium",
+      "download_bytes": 6550825550,
+      "ram_need_gib": 6.7,
+      "auto": true,
+      "about": "Clearly smarter than the small models and still fine for chatting. The best at explaining your box."
+    },
+    {
+      "id": "large",
+      "tag": "gemma4:26b-a4b-it-qat",
+      "name": "Gemma 4 26B",
+      "label": "Large",
+      "download_bytes": 15634199946,
+      "ram_need_gib": 17,
+      "auto": false,
+      "about": "The smartest model that fits next to an Ethereum node, and still quick. Needs about 20 GB of free memory."
+    }
+  ]
+}

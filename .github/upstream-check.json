@@ -1,0 +1,52 @@
+{
+  "title": "Private Assistant",
+  "components": [
+    {
+      "name": "Ollama",
+      "github": "ollama/ollama",
+      "images": [
+        {
+          "var": "ollama",
+          "ref": "ollama/ollama:{version}"
+        }
+      ],
+      "pins": [
+        {
+          "file": "build/Dockerfile",
+          "text": "ARG OLLAMA_IMAGE=ollama/ollama:{version}@sha256:{ollama}"
+        },
+        {
+          "file": "build/Dockerfile",
+          "text": "ollama --version 2>&1 | grep -q \"{version}\""
+        },
+        {
+          "file": "README.md",
+          "text": "`ollama/ollama:{version}`",
+          "optional": true
+        }
+      ]
+    },
+    {
+      "name": "Open WebUI",
+      "github": "open-webui/open-webui",
+      "images": [
+        {
+          "var": "webui",
+          "ref": "ghcr.io/open-webui/open-webui:v{version}-slim"
+        }
+      ],
+      "caution": "Open WebUI updates often change its database. Check on the test box that existing chats and settings are still there after the update.",
+      "pins": [
+        {
+          "file": "build/Dockerfile",
+          "text": "ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v{version}-slim@sha256:{webui}"
+        },
+        {
+          "file": "README.md",
+          "text": "`ghcr.io/open-webui/open-webui:v{version}-slim`",
+          "optional": true
+        }
+      ]
+    }
+  ]
+}
