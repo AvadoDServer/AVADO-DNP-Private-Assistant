@@ -27,6 +27,20 @@ RUN set -eux; \
     test -e /out/lib/ollama/libggml-base.so.0; \
     ! test -e /out/lib/ollama/cuda_v12
 
+########## Speech for Home Assistant (voice.py): Wyoming speech to text (faster-whisper) and text to
+# speech (Piper), in their own virtual environment, every version pinned (build/voice/requirements.txt).
+# No models inside: they are fetched into the models volume the first time voice is turned on.
+FROM --platform=linux/amd64 ${OPENWEBUI_IMAGE} AS voice
+COPY build/voice/requirements.txt /tmp/voice-requirements.txt
+RUN set -eux; \
+    python3 -m venv /opt/avado/voice; \
+    /opt/avado/voice/bin/pip install --no-cache-dir --only-binary :all: --no-deps -r /tmp/voice-requirements.txt; \
+    /opt/avado/voice/bin/pip check; \
+    /opt/avado/voice/bin/wyoming-faster-whisper --help >/dev/null; \
+    /opt/avado/voice/bin/wyoming-piper --help >/dev/null; \
+    /opt/avado/voice/bin/pip uninstall -y pip; \
+    find /opt/avado/voice -name __pycache__ -type d -prune -exec rm -rf {} +
+
 ########## Setup helper tests (a failing test fails the image build)
 FROM --platform=linux/amd64 ${OPENWEBUI_IMAGE} AS test
 COPY build/setup /opt/avado/setup
@@ -46,6 +60,7 @@ RUN apt-get update \
 COPY --from=ollama /out/bin/ollama /usr/local/bin/ollama
 COPY --from=ollama /out/lib/ollama /usr/local/lib/ollama
 COPY --from=test /opt/avado/setup /opt/avado/setup
+COPY --from=voice /opt/avado/voice /opt/avado/voice
 COPY build/nginx/nginx.conf /etc/nginx/nginx.conf
 COPY build/nginx/avado-starting.html /opt/avado/nginx/avado-starting.html
 COPY build/avado-start build/avado-ollama /usr/local/bin/
@@ -57,7 +72,7 @@ COPY build/licenses/ /usr/share/doc/avado-assistant/
 COPY dappnode_package.json /tmp/dappnode_package.json
 RUN set -eux; \
     useradd --system --uid 10001 --user-group --home-dir /models --no-create-home --shell /usr/sbin/nologin assistant; \
-    mkdir -p /models/models /app/backend/data/avado; \
+    mkdir -p /models/models /models/voice /app/backend/data/avado; \
     chown -R assistant:assistant /models /app/backend/data /app/backend/open_webui/static; \
     python3 -c 'import json,re,sys; v=json.load(open("/tmp/dappnode_package.json"))["version"]; \
         sys.exit("bad package version") if not re.fullmatch(r"[0-9A-Za-z.+-]+", v or "") else None; \
@@ -67,6 +82,7 @@ RUN set -eux; \
     nginx -t; \
     /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.14"; \
     test -f /opt/avado/setup/public/index.html; \
+    test -x /opt/avado/voice/bin/wyoming-faster-whisper; \
     ! test -e /opt/avado/setup/tests
 
 # Ollama: on the box only (127.0.0.1), models in the models volume, never the
@@ -88,9 +104,13 @@ RUN set -eux; \
 # time; and from 0.13 "create a tool from chat") are off for every model: they
 # add about 5,500 tokens to every question, which a processor needs one to two
 # minutes to read, and the model then tends to search empty notes and ask a
-# question back instead of answering (test box). Workspace tools, tool servers
-# and scheduled automations are off as well (ENABLE_TOOLS also removes "create a
+# question back instead of answering (test box). Workspace (Python) tools and
+# scheduled automations are off as well (ENABLE_TOOLS also removes "create a
 # tool from chat"); Functions stay on for the "About this AVADO" filter.
+# Tool servers are on, for one entry made by the setup helper when the owner connects AI Connect:
+# Open WebUI's MCP client then reaches AI Connect's four read-only box checks through the helper
+# (127.0.0.1:8090/internal/mcp, see aiconnect.py). At most 3 rounds of tool calls per answer, so a
+# small model cannot loop.
 # DEFAULT_MODEL_PARAMS: thinking off (every model in the catalogue thinks by
 # default in Ollama, which costs a minute per answer on a processor); avado-start
 # adds num_thread = half the processor threads. Documents added to a chat still
@@ -124,7 +144,8 @@ ENV OLLAMA_HOST=127.0.0.1:11434 \
     ENABLE_CODE_INTERPRETER=false \
     ENABLE_EVALUATION_ARENA_MODELS=false \
     ENABLE_TOOLS=false \
-    ENABLE_TOOL_SERVERS=false \
+    ENABLE_TOOL_SERVERS=true \
+    CHAT_RESPONSE_MAX_TOOL_CALL_ITERATIONS=3 \
     ENABLE_AUTOMATIONS=false \
     ENABLE_PIP_INSTALL_FRONTMATTER_REQUIREMENTS=false \
     BYPASS_EMBEDDING_AND_RETRIEVAL=true \
@@ -132,9 +153,11 @@ ENV OLLAMA_HOST=127.0.0.1:11434 \
     DEFAULT_MODEL_PARAMS='{"think":false}' \
     CORS_ALLOW_ORIGIN=http://assistant.my.ava.do \
     AVADO_STATE_DIR=/app/backend/data/avado \
+    AVADO_APP_DOORS=homeassistant.my.ava.do \
     AVADO_VERSION_FILE=/opt/avado/package-version
 
 WORKDIR /app/backend
-EXPOSE 80
+# 80: the chat and the setup page. 11434, 10300, 10200: the doors for Home Assistant only (doors.py).
+EXPOSE 80 11434 10300 10200
 ENTRYPOINT ["/usr/bin/tini", "-g", "--"]
 CMD ["/usr/local/bin/avado-start"]

@@ -52,6 +52,7 @@
             <div class="step-head"><span class="step-title">Start chatting</span></div>
             <p id="speed-text" class="muted small" hidden></p>
             <a class="button" id="open" href="/" target="_blank" rel="noopener" hidden>Open the assistant</a>
+            <p id="tools-tip" class="muted small" hidden>It can also check your box live: <a href="#live" id="tools-tip-link">turn on live checks</a>.</p>
           </li>
         </ol>
       </section>
@@ -67,6 +68,33 @@
           </p>
           <ul class="models" id="models"></ul>
           <p class="muted small" id="hidden-models" hidden></p>
+        </div>
+
+        <div class="more-item" id="live">
+          <h3>Live checks of your box</h3>
+          <p class="small" id="tools-state"></p>
+          <div id="tools-off" hidden>
+            <ol class="small steps-small">
+              <li>Open AI Connect and make a connection named "Private Assistant", with no extra permissions. Copy its key.</li>
+              <li>Paste the key here.</li>
+            </ol>
+            <div class="actions">
+              <a class="button ghost small" id="tools-page" href="http://mcp.my.ava.do" target="_blank" rel="noopener">Open AI Connect</a>
+            </div>
+            <form class="paste" id="tools-form" autocomplete="off">
+              <label class="small" for="tools-key">AI Connect key</label>
+              <input type="password" id="tools-key" name="key" placeholder="avado_…" spellcheck="false" autocomplete="off" />
+              <button type="submit" class="button small" id="tools-connect">Connect</button>
+            </form>
+          </div>
+          <div class="actions" id="tools-on" hidden>
+            <button type="button" class="button ghost small" id="tools-disconnect">Turn off live checks</button>
+          </div>
+        </div>
+
+        <div class="more-item" id="voice-card">
+          <h3>Voice for Home Assistant</h3>
+          <p class="small" id="voice-state"></p>
         </div>
 
         <div class="more-item" id="speed-card" hidden>
@@ -86,7 +114,7 @@
             <li><strong>Private.</strong> Your chats and documents stay on this box. Nothing is sent to an AI company. The box only goes online to download models and updates.</li>
             <li><strong>It runs on the processor.</strong> It does not use a graphics chip (no AVADO box can use one for AI yet), so answers come at a steady pace, not instantly. When you add a document to a chat, the assistant reads all of it first, so a long document can take a few minutes before the answer starts.</li>
             <li><strong>Your node comes first.</strong> The assistant uses half the processor at most and keeps at least 4 GB of memory free for your node. If your node needs more, the assistant pauses by itself. After 10 minutes without use the model leaves memory; the next answer then takes a little longer.</li>
-            <li><strong>It knows your box.</strong> Every chat gets a short summary of this AVADO (apps, memory, disk, sync, validators), so you can ask "Is my validator OK?". It only reads; it cannot change anything.</li>
+            <li><strong>It knows your box.</strong> Every chat gets a short summary of this AVADO (apps, memory, disk, sync, validators), so you can ask "Is my validator OK?". With live checks on, it can also run the Admin's health check and read app logs while it answers. It only reads; it cannot change anything.</li>
             <li><strong>Bigger is smarter, but needs more.</strong> The page suggests the biggest model that fits next to your node, measured at its busiest moment in the last 7 days.</li>
             <li><strong>It can be wrong.</strong> Check important answers, especially about money, health or law.</li>
           </ul>

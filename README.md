@@ -123,15 +123,121 @@ AVADO's package format has no CPU or memory limits (the DAPPMANAGER does not pas
   suggestions, tags, search and retrieval queries, autocomplete. Titles stay on.
 - Open WebUI's built-in tools (search memories, notes, chats and knowledge; ask the user; time; from 0.13
   also "create a tool from chat") are off for every model (`DEFAULT_MODEL_METADATA` capabilities
-  `builtin_tools: false`), and so are workspace tools, tool servers and scheduled automations
-  (`ENABLE_TOOLS=false`, `ENABLE_TOOL_SERVERS=false`, `ENABLE_AUTOMATIONS=false`; `ENABLE_TOOLS` also
-  removes "create a tool from chat"). With the built-in tools on, a one-line question becomes a
-  5,500-token prompt that a processor needs minutes to read. Functions stay on for the filter.
+  `builtin_tools: false`), and so are workspace (Python) tools and scheduled automations
+  (`ENABLE_TOOLS=false`, `ENABLE_AUTOMATIONS=false`; `ENABLE_TOOLS` also removes "create a tool from
+  chat"). With the built-in tools on, a one-line question becomes a 5,500-token prompt that a processor
+  needs minutes to read. Functions stay on for the filter. Tool servers are on (`ENABLE_TOOL_SERVERS=true`)
+  for the one entry the helper makes for live checks (below); at most 3 rounds of tool calls per answer
+  (`CHAT_RESPONSE_MAX_TOOL_CALL_ITERATIONS=3`).
+
+## Live checks of the box (AI Connect, 0.2.0)
+
+With [AI Connect](https://github.com/AvadoDServer/AVADO-DNP-MCP) on the box, the assistant can call
+four of its read-only tools while it answers, so "Is my AVADO healthy?" is answered from a fresh check:
+
+| Tool (as the model sees it) | AI Connect tool | What |
+|---|---|---|
+| `avado_health_check` | `health_check` | the Admin's own health rules, plus processes down / out of memory / restarting |
+| `avado_list_apps` | `list_apps` | installed apps, version, running or not |
+| `avado_ethereum_status` | `ethereum_status` | per node app: in sync or how far behind, peers, validator count |
+| `avado_app_logs` | `app_logs` | the newest lines of one app's log, secrets hidden by AI Connect |
+
+- **Turning it on** (setup page, More options, "Live checks of your box"; owner only): make a connection
+  named "Private Assistant" on the AI Connect page with no extra permissions, paste its key, press
+  Connect. A key that may restart, install or update apps is refused: the assistant only looks.
+  AI Connect can also send the owner straight to `http://assistant.my.ava.do/avado/#aiconnect=<key>`;
+  the page then has the key filled in and the owner presses Connect (the key in the `#` part never
+  reaches a server log).
+- **Open WebUI never sees the key.** The helper (`build/setup/aiconnect.py`) registers one MCP tool
+  server in Open WebUI (`http://127.0.0.1:8090/internal/mcp`, bearer = the helper's internal token,
+  owner-only access, `function_name_filter_list` = the four tools) and adds it to the model entries'
+  `toolIds`, so it is on in every new chat. The helper passes each MCP message on to
+  `http://mcp.my.ava.do/mcp` with the owner's key (kept in `aiconnect.json` in the data volume, mode
+  600). On the way it lists and allows only the four tools, asks for at most 40 log lines, drops the
+  duplicate `structuredContent` and shortens every answer to 6,000 characters (for logs it keeps the
+  newest part), so one tool call adds at most about 1,500 tokens for the processor to read.
+- Native function calling (Ollama `tools`) with the catalogue's Qwen3.5 4B / 9B, the best small models at
+  tool calls (BFCL-V4, MCP-Atlas). The chat rules tell the model to call the matching tool before it
+  answers a question about the box, and not to paste raw logs.
+- Family members' accounts do not get the box checks (the tool server is owner-only).
+
+## "Explain this" for the Admin (0.2.0)
+
+`POST http://assistant.my.ava.do/avado/api/explain` explains ONE finding of the Admin's health check in
+plain words, written word by word as server-sent events (`build/setup/explain.py`). For the AVADO Admin
+only: CORS for `http(s)://my.ava.do`, the `X-Avado-Request: 1` header, JSON of at most 16 kB.
+
+```
+POST /avado/api/explain
+Origin: http://my.ava.do
+Content-Type: application/json
+X-Avado-Request: 1
+
+{"finding": {"id": "disk-high", "severity": "warning", "topic": "storage",
+             "title": "Your disk is 91% full", "why": "...", "fix": {"label": "Free up space"}},
+ "app": {"title": "Geth", "version": "10.0.84", "running": true},
+ "context": {"verdict": "Needs attention", "disk": {"pct": 91},
+             "processes": [{"name": "geth", "state": "RUNNING", "lastError": "..."}],
+             "sync": {"syncing": false, "distance": 0, "peers": 47}},
+ "question": "optional, at most 300 characters"}
+
+200 text/event-stream
+event: text   data: {"text": "Your disk is almost full. "}   (repeated)
+event: done   data: {"cached": false, "stopped": false}
+```
+
+- Errors answer JSON `{"error": "..."}`: 409 no model yet, 503 paused for the node, 429 another
+  explanation is being written (one at a time), 400/413/415 a bad request, 403 another page.
+- The helper builds the prompt itself: 3 to 6 plain sentences (what it means, why it matters, what to
+  do), only from the facts given, no commands, paths or settings outside the Admin, and only the
+  finding's own fix button, by its label. Validator and money findings end with "If you are unsure, ask
+  AVADO support at support@ava.do". Every string is scrubbed again with the Admin's rules
+  (`health/diagnostics.js` `scrub()`).
+- At most 2 minutes per answer; a finished answer is kept for an hour (same finding id, text, fix and
+  question, same model), so opening it again is instant.
+- `GET /avado/api/status` is readable by the Admin too (CORS) and has `"api": {"explain": true}`, so the
+  Admin shows "Explain" only when the assistant is installed, has a model and is new enough.
+
+## Doors for Home Assistant (0.2.0)
+
+Everything above listens on 127.0.0.1 or behind the sign-in. `build/setup/doors.py` opens three doors on
+the container's AVADO address for ONE named app, Home Assistant (`AVADO_APP_DOORS`, default
+`homeassistant.my.ava.do`): a connection is accepted only from the address the box's name server gives
+for that name (looked up again when an unknown address knocks, at most every 5 s, and every 60 s).
+
+| Door | What | Who |
+|---|---|---|
+| `assistant.my.ava.do:11434` | Ollama's API, for Home Assistant's Ollama integration | Home Assistant, with a key |
+| `assistant.my.ava.do:10300` | speech to text (Wyoming, faster-whisper) | Home Assistant, while voice is on |
+| `assistant.my.ava.do:10200` | text to speech (Wyoming, Piper) | Home Assistant, while voice is on |
+
+- The model door also wants a key, which Home Assistant gets once from `POST /avado/connect` (only it can
+  call that). It lets through only `GET /api/version`, `/api/tags`, `/api/ps` and `POST /api/show`,
+  `/api/chat`, `/api/generate`: nothing can be downloaded, copied, created or deleted. Every chat gets the
+  assistant's own settings: thinking off, half the threads, the 8k context (so the model is never loaded
+  twice), at most 10 minutes in memory. While the assistant is paused for the node, a chat answers 503
+  "Paused so your Ethereum node has enough memory".
+- `POST /avado/voice {"on": true, "language": "en"}` (with the key) starts or stops the speech servers;
+  `GET /avado/status` tells Home Assistant the model and whether speech is ready.
+
+## Voice for Home Assistant (0.2.0)
+
+`build/setup/voice.py` runs two small Wyoming servers while Home Assistant has voice on, in their own
+virtual environment (`/opt/avado/voice`, every version pinned in `build/voice/requirements.txt`):
+**wyoming-faster-whisper 3.8.1** (faster-whisper 1.2.1, model `auto` = `base-int8` on this processor,
+about 80 MB) and **wyoming-piper 2.5.2** (Piper 1.8.0; the voice follows Home Assistant's language:
+`en_US-lessac-medium`, `de_DE-thorsten-medium`, `sl_SI-artur-medium`, ...; about 60 MB each). Both are
+the newest on PyPI (2026-11-05). They run at nice 10, OOM score 1000, at most 4 threads, as the app
+user; models are fetched once into `/models/voice` the first time voice is turned on (or side-loaded
+there). Speech counts in the sizing: 0.6 GiB more is kept aside while voice is on (the pause line and
+the suggestion both include it). Turning voice off stops both.
+
+Home Assistant's side (the switch, the Assist pipeline) is in AVADO-DNP-HomeAssistant 0.2.0.
 
 ## Privacy
 
 - Ollama, Open WebUI and the helper listen on 127.0.0.1 only; nginx on port 80 is the only listener on
-  the AVADO network. Requests with any other host name (an IP address, a name a web page made up to
+  the AVADO network for people. The doors for Home Assistant (above) answer only Home Assistant. Requests with any other host name (an IP address, a name a web page made up to
   reach the box) are redirected to `assistant.my.ava.do`. No host ports.
 - No cloud: `OLLAMA_NO_CLOUD=1`, `ENABLE_OPENAI_API=false`, no direct connections, no community
   sharing, `OFFLINE_MODE=true` (no update checks, no downloads from Hugging Face).
@@ -169,7 +275,10 @@ DAPPMANAGER change. No dependencies.
 ## Not in this version
 
 - Graphics-chip acceleration (needs AVADO OS 2 and `devices` support in the DAPPMANAGER).
-- HTTPS (voice input in the browser needs it); the page is plain HTTP like most AVADO apps.
+- HTTPS (voice input in the browser needs it); the page is plain HTTP like most AVADO apps. Voice works
+  through Home Assistant (its apps and voice devices).
+- One-click hand-over of the AI Connect key from AI Connect's page (the receiving end, `#aiconnect=`, is
+  here; AI Connect's button is not).
 - Document search with embeddings (needs a vector store the slim image can use locally).
 
 ## Development
@@ -186,6 +295,8 @@ docker run --rm -p 127.0.0.1:8480:80 assistant-test   # nothing is downloaded un
 
 AVADO's own files in this repository: GPL-3.0 (see `LICENSE`). The image contains Open WebUI
 (Copyright (c) 2023- Open WebUI Inc.; Open WebUI License, BSD-3-Clause based, with a branding clause:
-the "Open WebUI" name and logo are kept unchanged) and Ollama (Copyright (c) Ollama; MIT). Their
+the "Open WebUI" name and logo are kept unchanged), Ollama (Copyright (c) Ollama; MIT), and for speech
+wyoming-faster-whisper, wyoming-piper and wyoming (MIT), Piper (`piper-tts`, GPL-3.0), faster-whisper
+(MIT), CTranslate2 (MIT) and ONNX Runtime (MIT), installed unchanged from PyPI. Their
 licence texts are in `build/licenses/` and in the image under `/usr/share/doc/avado-assistant/`. DAppNode's `DAppNodePackage-ollama-openwebui-generic` and `DAppNodePackage-ollama-generic`
 were read for reference only (they have no licence file); no code or files were copied from them.

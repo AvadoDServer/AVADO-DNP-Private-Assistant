@@ -19,13 +19,20 @@ Runs next to Ollama and Open WebUI in the package container (see
 * keeps Open WebUI's settings in step (default model, friendly model names, thinking off, half the
   processor threads, built-in tools off, the filter), through Open WebUI's admin API with the
   owner's own sign-in, whenever the owner opens this page;
-* measures how fast the model writes on this box, once, after a download.
+* measures how fast the model writes on this box, once, after a download;
+* lets the chat check the box live through AI Connect, when the owner connects it (aiconnect.py:
+  four read-only tools, through /internal/mcp, so Open WebUI never sees the AI Connect key);
+* explains one finding of the Admin's health check in plain words (POST /avado/api/explain, for the
+  AVADO Admin only, see explain.py);
+* opens doors for one named app, Home Assistant: the model (port 11434) and, while voice is on, local
+  speech to text and text to speech (ports 10300 and 10200), see doors.py and voice.py.
 
 Standard library only (the image's Python), so it adds nothing to the image and cannot break when
 Open WebUI's own Python packages change.
 """
 
 import collections
+import http.client
 import json
 import os
 import secrets
@@ -39,7 +46,11 @@ import urllib.request
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
+import aiconnect
 import boxfacts
+import doors
+import explain
+import voice as speech
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 
@@ -253,25 +264,25 @@ def overhead_gib(catalog):
     return s["margin_gib"] + s["webui_gib"] + s["cache_gib"]
 
 
-def budget_gib(catalog, free_gib):
-    """Memory the model may use: free memory minus the margin for the node, Open WebUI and the
-    model runner's prompt cache."""
+def budget_gib(catalog, free_gib, extra_gib=0.0):
+    """Memory the model may use: free memory minus the margin for the node, Open WebUI, the
+    model runner's prompt cache and (while voice is on) the speech servers."""
     if free_gib is None:
         return None
-    return free_gib - overhead_gib(catalog)
+    return free_gib - overhead_gib(catalog) - extra_gib
 
 
-def uses_gib(catalog, model):
-    """What the owner is told the assistant will use: the model plus Open WebUI."""
-    return model["ram_need_gib"] + catalog["sizing"]["webui_gib"]
+def uses_gib(catalog, model, extra_gib=0.0):
+    """What the owner is told the assistant will use: the model plus Open WebUI (plus speech)."""
+    return model["ram_need_gib"] + catalog["sizing"]["webui_gib"] + extra_gib
 
 
-def check_fit(catalog, model, free_gib, free_bytes):
+def check_fit(catalog, model, free_gib, free_bytes, extra_gib=0.0):
     """(fits?, reason in plain words when it does not)."""
-    budget = budget_gib(catalog, free_gib)
-    if budget is not None and (free_gib < catalog["sizing"]["min_free_gib"] or model["ram_need_gib"] > budget):
+    budget = budget_gib(catalog, free_gib, extra_gib)
+    if budget is not None and (free_gib < catalog["sizing"]["min_free_gib"] + extra_gib or model["ram_need_gib"] > budget):
         return False, "Needs about %s of free memory next to your node." % plain_gib(
-            model["ram_need_gib"] + overhead_gib(catalog))
+            model["ram_need_gib"] + overhead_gib(catalog) + extra_gib)
     reserve = catalog["reserve_bytes"]
     if free_bytes is not None and free_bytes < model["download_bytes"] + reserve:
         need = model["download_bytes"] + reserve
@@ -280,13 +291,13 @@ def check_fit(catalog, model, free_gib, free_bytes):
     return True, None
 
 
-def recommend(catalog, free_gib, free_bytes):
+def recommend(catalog, free_gib, free_bytes, extra_gib=0.0):
     """The suggestion: the biggest model marked "auto" that fits the memory budget and the disk.
     None when the box has too little memory to spare (below min_free_gib nothing is suggested)."""
-    if free_gib is not None and free_gib < catalog["sizing"]["min_free_gib"]:
+    if free_gib is not None and free_gib < catalog["sizing"]["min_free_gib"] + extra_gib:
         return None
     for m in reversed([m for m in catalog["models"] if m.get("auto")]):
-        if check_fit(catalog, m, free_gib, free_bytes)[0]:
+        if check_fit(catalog, m, free_gib, free_bytes, extra_gib)[0]:
             return m
     return None
 
@@ -305,7 +316,7 @@ def same_tag(a, b):
     return bool(a and b) and norm(a) == norm(b)
 
 
-def sizing_sentence(catalog, reading, model):
+def sizing_sentence(catalog, reading, model, extra_gib=0.0):
     """ "Even at its busiest, your AVADO has about 39 GB free. The assistant will use about 8 GB." """
     free = reading.get("free")
     if free is None:
@@ -316,8 +327,8 @@ def sizing_sentence(catalog, reading, model):
         first = "Your AVADO has about %s free right now." % plain_gib(free)
     if model is None:
         return first + " The assistant needs about %s free, so it does not download anything for now." % plain_gib(
-            catalog["sizing"]["min_free_gib"])
-    return first + " The assistant will use about %s." % plain_gib(uses_gib(catalog, model))
+            catalog["sizing"]["min_free_gib"] + extra_gib)
+    return first + " The assistant will use about %s." % plain_gib(uses_gib(catalog, model, extra_gib))
 
 
 # --------------------------------------------------------------------------
@@ -480,6 +491,40 @@ class Ollama:
             raise Cancelled()
         raise PullError("stream ended before the download finished")
 
+    def chat_stream(self, tag, messages, deadline, threads=None, max_tokens=explain.MAX_WORDS_TOKENS,
+                    clock=time.monotonic):
+        """Yields the answer word by word (Ollama /api/chat, streaming). Thinking off, half the
+        threads, the same context as every chat (so the model is not loaded again)."""
+        options = {"num_predict": max_tokens, "temperature": 0.3}
+        if threads:
+            options["num_thread"] = threads
+        u = urllib.parse.urlsplit(self.base)
+        conn = http.client.HTTPConnection(u.hostname, u.port or 80, timeout=max(5, deadline - clock()))
+        try:
+            conn.request("POST", "/api/chat", body=json.dumps({
+                "model": tag, "messages": messages, "stream": True, "think": False, "options": options,
+            }).encode(), headers={"Content-Type": "application/json"})
+            r = conn.getresponse()
+            if r.status != 200:
+                raise PullError("the model answered %d" % r.status)
+            for line in r:
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    event = json.loads(line)
+                except ValueError:
+                    continue
+                if event.get("error"):
+                    raise PullError(str(event["error"]))
+                piece = (event.get("message") or {}).get("content")
+                if piece:
+                    yield piece
+                if event.get("done") or clock() > deadline:
+                    break
+        finally:
+            conn.close()
+
     def speed_test(self, tag, threads=None):
         """Words per second on this box. Runs twice and keeps the better run: the
         first one also loads the model, and a busy moment on the box (a node
@@ -631,6 +676,51 @@ class WebUI:
         })
         return True
 
+    def set_tool_server(self, token, connection):
+        """Admin settings, External tools: our AI Connect entry (info.id "avado") added, brought up to
+        date or switched off. Other entries the owner made stay as they are. Returns True if changed."""
+        cfg = http_json(self.base + "/api/v1/configs/tool_servers", headers=self._auth(token), timeout=10)
+        conns = [c for c in (cfg.get("TOOL_SERVER_CONNECTIONS") or []) if isinstance(c, dict)]
+        ours = [c for c in conns if (c.get("info") or {}).get("id") == aiconnect.SERVER_ID]
+        others = [c for c in conns if (c.get("info") or {}).get("id") != aiconnect.SERVER_ID]
+        if connection is None:
+            if not ours:
+                return False
+            new = others
+        else:
+            if len(ours) == 1 and all(ours[0].get(k) == v for k, v in connection.items()):
+                return False
+            new = others + [connection]
+        http_json(self.base + "/api/v1/configs/tool_servers", data={"TOOL_SERVER_CONNECTIONS": new},
+                  headers=self._auth(token), timeout=20)
+        return True
+
+    def set_model_tools(self, token, tag, on):
+        """The model entry `tag` gets (or loses) the box checks as a tool that is on in every new chat.
+        Returns True if changed; False also when there is no entry."""
+        try:
+            m = http_json(self.base + "/api/v1/models/model?" + urllib.parse.urlencode({"id": tag}),
+                          headers=self._auth(token), timeout=10)
+        except urllib.error.HTTPError as e:
+            if e.code in (401, 404):
+                return False
+            raise
+        if not m:
+            return False
+        meta = dict(m.get("meta") or {})
+        ids = [t for t in (meta.get("toolIds") or []) if t != aiconnect.TOOL_ID]
+        if on:
+            ids.append(aiconnect.TOOL_ID)
+        if ids == (meta.get("toolIds") or []):
+            return False
+        meta["toolIds"] = ids
+        http_json(self.base + "/api/v1/models/model/update", headers=self._auth(token), timeout=10, data={
+            "id": m["id"], "base_model_id": m.get("base_model_id"), "name": m.get("name") or tag,
+            # access grants are not sent: an update keeps them (Open WebUI sets them only on create)
+            "meta": meta, "params": m.get("params") or {}, "is_active": m.get("is_active", True),
+        })
+        return True
+
     def install_filter(self, token):
         """The "About this AVADO" filter: installed, switched on, for every model. Its code is
         brought up to date when the package has a newer one. Returns what it did."""
@@ -671,7 +761,7 @@ class WebUI:
 class Manager:
     def __init__(self, catalog, ollama, webui, state_dir=STATE_DIR, memory=None, facts=None,
                  free_bytes_fn=None, retry_seconds=RETRY_SECONDS, clock=time.monotonic,
-                 warmup_seconds=90, threads=None):
+                 warmup_seconds=90, threads=None, tools=None, voice=None):
         self.catalog = catalog
         self.ollama = ollama
         self.webui = webui
@@ -702,6 +792,9 @@ class Manager:
         os.makedirs(state_dir, exist_ok=True)
         self.state = self._load()
         self.internal_token = self._internal_token()
+        self.tools = tools or aiconnect.AIConnect(state_dir)
+        self.voice = voice or speech.Voice(state_dir)
+        self.explainer = explain.Explainer(self._explain_chat)
         if not os.path.exists(self._path("state.json")):
             self._save()
 
@@ -711,7 +804,7 @@ class Manager:
 
     def _load(self):
         base = {"active": None, "target": None, "phase": "starting", "problem": None, "retry": False,
-                "failed": None, "speed": None, "named": []}
+                "failed": None, "speed": None, "named": [], "apps": {}}
         try:
             with open(self._path("state.json")) as f:
                 base.update(json.load(f))
@@ -782,7 +875,7 @@ class Manager:
             if self.paused:
                 self.paused = False
             return reading
-        line = self.need_gib(active) + overhead_gib(self.catalog)
+        line = self.need_gib(active) + overhead_gib(self.catalog) + self.voice.gib()
         if not self.paused and now < line:
             self.paused = True
             sys.stderr.write("avado-setup: only %.1f GiB free (needs %.1f): pausing the assistant\n" % (now, line))
@@ -809,6 +902,10 @@ class Manager:
         """The "About this AVADO" text. Built at most once a minute; while a rebuild runs, the last
         text is used, so a chat never waits for the box's slow calls (only the very first one)."""
         f = self.facts
+        if getattr(f, "tools", False) != self.tools.connected:
+            # Live checks were turned on or off: the rules at the top change, build the text again
+            f.tools = self.tools.connected
+            f.text = None
         text = f.text
         if text is not None:
             if f.text_at is None or self.clock() - f.text_at >= 60:
@@ -879,6 +976,66 @@ class Manager:
         self.refresh()
         return None
 
+    def connect_tools(self, key):
+        problem = self.tools.connect(key)
+        if not problem:
+            self.webui_synced = None
+        return problem
+
+    def disconnect_tools(self):
+        self.tools.disconnect()
+        self.webui_synced = None
+        return None
+
+    # -- the app door (Home Assistant), see doors.py
+    def paused_message(self):
+        return PAUSED_MESSAGE
+
+    def app_status(self):
+        active = self.state.get("active")
+        m = find_model(self.catalog, active) if active else None
+        return {
+            "version": (read_file(VERSION_FILE) or "").strip() or None,
+            "model": active if active and self._on_box(active) else None,
+            "model_name": (m or {}).get("name") or active,
+            "paused": self.paused,
+            "voice": self.voice.status(),
+        }
+
+    def _note_app(self, name):
+        if not name:
+            return
+        apps = dict(self.state.get("apps") or {})
+        if (apps.get(name) or {}).get("voice") != self.voice.on or name not in apps:
+            apps[name] = {"at": int(time.time()), "voice": self.voice.on}
+            self._set(apps=apps)
+
+    def app_connect(self, name, key):
+        sys.stderr.write("avado-setup: %s connected to the assistant\n" % (name or "an app"))
+        self._note_app(name)
+        return dict(self.app_status(), key=key)
+
+    def app_voice(self, on, language, name):
+        if on and not self.voice.installed():
+            return dict(self.app_status(), error="This version of the assistant has no speech part.")
+        self.voice.set(on, language, by=name)
+        self._note_app(name)
+        sys.stderr.write("avado-setup: voice %s for %s\n" % ("on" if on else "off", name or "an app"))
+        return self.app_status()
+
+    # -- "Explain this" for the Admin
+    def _explain_chat(self, messages, deadline):
+        return self.ollama.chat_stream(self.state.get("active"), messages, deadline, threads=self.threads)
+
+    def explain_check(self):
+        """None when an explanation can be written now, else (http status, sentence)."""
+        active = self.state.get("active")
+        if not active or not self._on_box(active):
+            return 409, "The assistant has no AI model yet."
+        if self.guard(active):
+            return 503, PAUSED_MESSAGE
+        return None
+
     def request_speed_test(self):
         if not self.state.get("active"):
             return "There is no model yet."
@@ -910,6 +1067,10 @@ class Manager:
             if named != self.state.get("named"):
                 self._set(named=named)
             self.webui.install_filter(token)
+            on = self.tools.connected
+            self.webui.set_tool_server(token, aiconnect.tool_server_connection(self.internal_token) if on else None)
+            for tag in named:
+                self.webui.set_model_tools(token, tag, on)
             self.webui_synced = (active, now)
         except Exception as e:
             sys.stderr.write("avado-setup: could not update the assistant's settings: %r\n" % e)
@@ -1032,13 +1193,13 @@ class Manager:
             self.wake.clear()
 
     # -- what the page shows
-    def _memory_sentence(self, mem, active, rec):
+    def _memory_sentence(self, mem, active, rec, extra=0.0):
         if active:
             m = find_model(self.catalog, active)
             if not m:
                 return None
-            return sizing_sentence(self.catalog, mem, m)
-        return sizing_sentence(self.catalog, mem, rec)
+            return sizing_sentence(self.catalog, mem, m, extra)
+        return sizing_sentence(self.catalog, mem, rec, extra)
 
     def status(self, can_change=False):
         with self.lock:
@@ -1048,11 +1209,12 @@ class Manager:
         free = self.free_bytes_fn()
         mem = self.mem if self.mem_checked is not None else self.check_memory()
         active, target = st.get("active"), st.get("target")
-        rec = recommend(self.catalog, mem["free"], free)
+        extra = self.voice.gib()
+        rec = recommend(self.catalog, mem["free"], free, extra)
         models = []
         for m in self.catalog["models"]:
             on_box = next((i for i in installed if same_tag(i["tag"], m["tag"])), None)
-            ok, why = check_fit(self.catalog, m, mem["free"], free)
+            ok, why = check_fit(self.catalog, m, mem["free"], free, extra)
             if same_tag(active, m["tag"]):
                 state = "active"
             elif same_tag(target, m["tag"]):
@@ -1063,12 +1225,12 @@ class Manager:
                 state = "available" if ok else "unavailable"
             models.append({
                 "id": m["id"], "name": m["name"], "label": m["label"], "about": m["about"],
-                "size_plain": plain_size(m["download_bytes"]), "uses_plain": plain_gib(uses_gib(self.catalog, m)),
+                "size_plain": plain_size(m["download_bytes"]), "uses_plain": plain_gib(uses_gib(self.catalog, m, extra)),
                 "state": state, "note": None if (ok or on_box) else why,
                 "recommended": rec is m,
             })
-        extra = [i for i in installed if not find_model(self.catalog, i["tag"])]
-        for i in extra:
+        added = [i for i in installed if not find_model(self.catalog, i["tag"])]
+        for i in added:
             models.append({"id": i["tag"], "name": i["tag"], "label": "Added by you", "about": "",
                            "size_plain": plain_size(i.get("size")), "uses_plain": None,
                            "state": "active" if same_tag(active, i["tag"]) else "installed",
@@ -1076,7 +1238,7 @@ class Manager:
         name_of = lambda tag: (find_model(self.catalog, tag) or {"name": tag})["name"] if tag else None
         speed = st.get("speed") or {}
         phase = st.get("phase")
-        rec_memory = recommend(self.catalog, mem["free"], None)  # memory alone
+        rec_memory = recommend(self.catalog, mem["free"], None, extra)  # memory alone
         if phase == "choose" and rec is None:
             if rec_memory is None and mem["free"] is not None:
                 phase = "no-memory"
@@ -1085,7 +1247,7 @@ class Manager:
         suggestion = None
         if rec is not None:
             suggestion = {"id": rec["id"], "name": rec["name"], "size_plain": plain_size(rec["download_bytes"]),
-                          "uses_plain": plain_gib(uses_gib(self.catalog, rec))}
+                          "uses_plain": plain_gib(uses_gib(self.catalog, rec, extra))}
         return {
             "version": (read_file(VERSION_FILE) or "").strip() or None,
             "phase": phase,
@@ -1103,7 +1265,11 @@ class Manager:
             else plain_speed_result(speed),
             "speed_testing": self.speed_testing,
             "suggestion": suggestion,
-            "memory_sentence": self._memory_sentence(mem, active, rec or rec_memory),
+            "memory_sentence": self._memory_sentence(mem, active, rec or rec_memory, extra),
+            "tools": self.tools.status(),
+            "voice": dict(self.voice.status(), apps=sorted(n for n, a in (st.get("apps") or {}).items()
+                                                          if (a or {}).get("voice"))),
+            "api": {"explain": True},
             "box": {
                 "ram_plain": plain_ram(boxfacts.mem_total_bytes()),
                 "free_plain": plain_size(free) if free is not None else None,
@@ -1163,7 +1329,14 @@ def make_handler(manager, public_dir=PUBLIC_DIR):
         def log_message(self, fmt, *args):  # quiet; nginx has the access log off too
             pass
 
-        def _send(self, code, body, ctype="application/json; charset=utf-8"):
+        def _cors(self):
+            """The AVADO Admin (http(s)://my.ava.do) may read the status and ask for explanations."""
+            origin = self.headers.get("Origin")
+            if explain.origin_allowed(origin):
+                self.send_header("Access-Control-Allow-Origin", origin)
+                self.send_header("Vary", "Origin")
+
+        def _send(self, code, body, ctype="application/json; charset=utf-8", cors=False):
             data = body if isinstance(body, bytes) else json.dumps(body).encode()
             self.send_response(code)
             self.send_header("Content-Type", ctype)
@@ -1172,8 +1345,100 @@ def make_handler(manager, public_dir=PUBLIC_DIR):
             self.send_header("X-Content-Type-Options", "nosniff")
             self.send_header("Referrer-Policy", "same-origin")
             self.send_header("Content-Security-Policy", CSP)
+            if cors:
+                self._cors()
             self.end_headers()
             self.wfile.write(data)
+
+        def do_OPTIONS(self):
+            path = self.path.split("?", 1)[0]
+            if path not in ("/avado/api/explain", "/avado/api/status") or \
+                    not explain.origin_allowed(self.headers.get("Origin")):
+                self._send(403, {"error": "Not allowed"})
+                return
+            self.send_response(204)
+            self._cors()
+            self.send_header("Access-Control-Allow-Methods", "GET, POST, OPTIONS")
+            self.send_header("Access-Control-Allow-Headers", "Content-Type, X-Avado-Request")
+            self.send_header("Access-Control-Max-Age", "600")
+            self.send_header("Content-Length", "0")
+            self.end_headers()
+
+        def _explain(self):
+            """POST /avado/api/explain: plain words for one finding, as server-sent events."""
+            origin = self.headers.get("Origin")
+            same = origin in (None, "http://assistant.my.ava.do", "https://assistant.my.ava.do")
+            if not (explain.origin_allowed(origin) or same) or self.headers.get("X-Avado-Request") != "1":
+                self._send(403, {"error": "Only the AVADO Admin can ask for explanations."}, cors=True)
+                return
+            if "application/json" not in (self.headers.get("Content-Type") or ""):
+                self._send(415, {"error": "Send JSON."}, cors=True)
+                return
+            try:
+                length = int(self.headers.get("Content-Length") or 0)
+            except ValueError:
+                length = 0
+            if length <= 0 or length > explain.MAX_BODY:
+                self._send(413, {"error": "Send at most 16 kB."}, cors=True)
+                return
+            try:
+                payload = explain.clean_payload(json.loads(self.rfile.read(length)))
+            except (ValueError, explain.PayloadError) as e:
+                self._send(400, {"error": str(e) if isinstance(e, explain.PayloadError) else "Send JSON."}, cors=True)
+                return
+            not_now = manager.explain_check()
+            if not_now:
+                self._send(not_now[0], {"error": not_now[1]}, cors=True)
+                return
+            try:
+                events = manager.explainer.run(payload, manager.state.get("active"))
+            except explain.Busy:
+                self._send(429, {"error": "The assistant is explaining something else. Please try again in a minute."},
+                           cors=True)
+                return
+            self.send_response(200)
+            self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("X-Accel-Buffering", "no")
+            self.send_header("X-Content-Type-Options", "nosniff")
+            self._cors()
+            self.end_headers()
+            self.close_connection = True
+            try:
+                for kind, data in events:
+                    body = {"text": data} if kind == "text" else data
+                    self.wfile.write(("event: %s\ndata: %s\n\n" % (kind, json.dumps(body))).encode())
+                    self.wfile.flush()
+            except (BrokenPipeError, ConnectionResetError):
+                pass  # the Admin closed the row: stop writing (closing the generator stops the model)
+            except Exception as e:
+                sys.stderr.write("avado-setup: explanation failed: %r\n" % e)
+                try:
+                    self.wfile.write(("event: error\ndata: %s\n\n" % json.dumps(
+                        {"error": "The assistant could not answer. Please try again."})).encode())
+                except OSError:
+                    pass
+            finally:
+                events.close()
+
+        def _mcp(self):
+            """POST /internal/mcp: Open WebUI's MCP client, passed on to AI Connect (aiconnect.py)."""
+            auth = self.headers.get("Authorization") or ""
+            token = auth[7:].strip() if auth.lower().startswith("bearer ") else ""
+            if not secrets.compare_digest(token.encode(), manager.internal_token.encode()):
+                self._send(401, {"error": "unauthorized"})
+                return
+            try:
+                length = min(int(self.headers.get("Content-Length") or 0), aiconnect.MAX_BODY)
+            except ValueError:
+                length = 0
+            code, out = manager.tools.handle(self.rfile.read(length) if length else b"")
+            if out is None:
+                self.send_response(code)
+                self.send_header("Content-Length", "0")
+                self.end_headers()
+                return
+            self._send(code, out)
 
         def _owner(self):
             return manager.webui.is_admin(request_token(self.headers))
@@ -1211,7 +1476,7 @@ def make_handler(manager, public_dir=PUBLIC_DIR):
                 owner = self._owner()
                 if owner:
                     manager.sync_webui(request_token(self.headers))
-                self._send(200, manager.status(can_change=owner))
+                self._send(200, manager.status(can_change=owner), cors=True)
                 return
             f = static_path(path, public_dir)
             if not f:
@@ -1230,6 +1495,12 @@ def make_handler(manager, public_dir=PUBLIC_DIR):
 
         def do_POST(self):
             path = self.path.split("?", 1)[0]
+            if path == "/internal/mcp":
+                self._mcp()
+                return
+            if path == "/avado/api/explain":
+                self._explain()
+                return
             # A custom header cannot be sent by a form or link on another site,
             # so another web page cannot press these buttons for the owner.
             if self.headers.get("X-Avado-Request") != "1":
@@ -1254,6 +1525,8 @@ def make_handler(manager, public_dir=PUBLIC_DIR):
                 "/avado/api/cancel": manager.stop_download,
                 "/avado/api/remove": lambda: manager.remove(key),
                 "/avado/api/speedtest": manager.request_speed_test,
+                "/avado/api/tools/connect": lambda: manager.connect_tools(str(body.get("key") or "")[:300]),
+                "/avado/api/tools/disconnect": manager.disconnect_tools,
             }
             if path not in actions:
                 self._send(404, {"error": "Not found"})
@@ -1273,6 +1546,8 @@ def main():
     manager = Manager(catalog, Ollama(), WebUI())
     worker = threading.Thread(target=manager.run, name="worker", daemon=True)
     worker.start()
+    threading.Thread(target=manager.voice.run, name="voice", daemon=True).start()
+    doors.start(manager, manager.voice)
     # Read the box facts once now, so the first chat does not wait for them
     threading.Thread(target=manager._rebuild_context, name="facts", daemon=True).start()
     server = ThreadingHTTPServer((LISTEN_HOST, LISTEN_PORT), make_handler(manager))

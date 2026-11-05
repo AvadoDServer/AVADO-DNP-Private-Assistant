@@ -93,6 +93,15 @@ class FakeWebUI:
         self.filters += 1
         return ["created"]
 
+    def set_tool_server(self, token, connection):
+        self.tool_server = connection
+        return True
+
+    def set_model_tools(self, token, tag, on):
+        self.model_tools = getattr(self, "model_tools", {})
+        self.model_tools[tag] = on
+        return True
+
 
 class FakeMemory:
     """free memory now / lowest in 7 days, in GiB"""

@@ -231,6 +231,24 @@
     show("speed-text", !!$("speed-text").textContent);
     show("signin-hint", !s.can_change && s.onboarding === false);
 
+    // Live checks (AI Connect)
+    var tools = s.tools || {};
+    show("tools-tip", canChat && !tools.connected && s.can_change);
+    $("tools-state").textContent = tools.connected
+      ? "On. While it answers, the assistant can run the Admin's health check and look at your apps, your node and app logs. It only looks; it cannot change anything." +
+        (tools.problem ? " " + tools.problem : "")
+      : "Off. With AI Connect, the assistant can run the Admin's health check and read app logs while it answers. It only looks.";
+    show("tools-off", !tools.connected && s.can_change);
+    show("tools-on", !!tools.connected && s.can_change);
+
+    // Voice for Home Assistant
+    var v = s.voice || {};
+    $("voice-state").textContent = v.on
+      ? (v.ready
+          ? "On: Home Assistant uses this assistant to understand and answer you, and to speak. Everything stays on this box. Switch it off on Home Assistant's AVADO page."
+          : "Starting the speech part for Home Assistant. The first time, it fetches its speech models (about 150 MB).")
+      : "Off. Home Assistant can use this assistant for voice: in the Admin, open Home Assistant, Setup, and switch on \"Use my AVADO's assistant for voice\".";
+
     // More options: speed
     show("speed-card", !!(s.speed || s.speed_testing));
     $("speed-more").textContent = s.speed_testing
@@ -323,6 +341,29 @@
   $("speedtest").addEventListener("click", function () {
     post("/avado/api/speedtest");
   });
+  $("tools-form").addEventListener("submit", function (e) {
+    e.preventDefault();
+    var key = $("tools-key").value.trim();
+    if (!key) return;
+    post("/avado/api/tools/connect", { key: key });
+    $("tools-key").value = "";
+  });
+  $("tools-disconnect").addEventListener("click", function () {
+    if (window.confirm("Turn off live checks? The assistant then only knows the short summary of your box.")) {
+      post("/avado/api/tools/disconnect");
+    }
+  });
+  $("tools-tip-link").addEventListener("click", function () {
+    $("more").open = true;
+  });
+
+  // AI Connect can send the owner here with a key: #aiconnect=avado_...
+  var m = /^#aiconnect=(avado_[A-Za-z0-9_-]+)$/.exec(location.hash || "");
+  if (m) {
+    $("more").open = true;
+    $("tools-key").value = m[1];
+    history.replaceState(null, "", location.pathname + location.search + "#live");
+  }
 
   load();
 })();

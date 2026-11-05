@@ -226,3 +226,39 @@ a.button {
   margin: 0 0 var(--space-xs);
   font-size: 1rem;
 }
+
+/* Live checks: the AI Connect key */
+.steps-small {
+  margin: var(--space-sm) 0 0;
+  padding-left: 1.2rem;
+}
+
+.paste {
+  margin-top: var(--space-md);
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 0.4rem var(--space-sm);
+  align-items: center;
+}
+
+.paste label {
+  grid-column: 1 / -1;
+  color: rgb(var(--fg-muted));
+}
+
+.paste input {
+  min-width: 0;
+  width: 100%;
+  font: inherit;
+  font-size: 0.9rem;
+  padding: 0.45rem 0.6rem;
+  border-radius: var(--radius-control);
+  border: 1px solid rgb(var(--border));
+  background: rgb(var(--bg-inset));
+  color: rgb(var(--fg));
+}
+
+.paste input:focus {
+  outline: 2px solid rgb(var(--accent));
+  outline-offset: 1px;
+}

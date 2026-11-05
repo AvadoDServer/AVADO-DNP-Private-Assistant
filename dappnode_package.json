@@ -1,6 +1,6 @@
 {
   "name": "assistant.avado.dnp.dappnode.eth",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "title": "Private Assistant",
   "description": "Your own AI chat assistant, running entirely on your AVADO. Ask questions, get help with writing, or ask about your box: \"Is my validator OK?\", \"How much disk is left?\". Your chats and files stay on your box: nothing is sent to an AI company.\n\nThe setup page suggests a model that fits next to your Ethereum node, from how much memory your box has free even at its busiest moment of the week, and shows how big the download is and how much memory it will use. Nothing is downloaded until you press the button. Models are 1 to 16 GB; with normal home internet the download takes from a few minutes to about an hour.\n\nBe aware: the assistant runs on the processor (no AVADO box can use a graphics chip for AI yet), so it is slower than ChatGPT. Answers appear word by word, and the first answer after a pause takes longer while the model loads. Your Ethereum node always comes first: the assistant uses at most half the processor, keeps memory free for the node, and pauses by itself if the node needs more.\n\nThe assistant is protected by your own account: the first account you create becomes the owner, and nobody else can make an account unless you add them. It can make mistakes, so check important answers.",
   "shortDescription": "Your own AI chat assistant, private on your box",

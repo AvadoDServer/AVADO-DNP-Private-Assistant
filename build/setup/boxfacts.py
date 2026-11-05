@@ -384,6 +384,8 @@ Rules:
 - For validator exits, withdrawals, rewards, or any question about money, do not give steps: point to docs.ava.do and support@ava.do.
 - Other questions (writing, explaining, general knowledge) you may answer normally; say when you are not sure."""
 
+TOOLS_RULE = """- You can also check the box live with your tools: avado_health_check (is everything OK, what needs attention), avado_list_apps (installed apps, running or not), avado_ethereum_status (node sync, peers, validators) and avado_app_logs (the newest log lines of one app). When asked whether the box, an app or the node is OK, call the matching tool first, then answer from what it returns, in plain words. Do not paste raw logs: say what they mean."""
+
 
 def gb(n):
     """Bytes as rounded decimal GB / TB, like the Admin."""
@@ -438,6 +440,8 @@ class Facts:
         self.packages_at = None
         self.text = None
         self.text_at = None
+        # Live checks through AI Connect are on (the rules then mention the tools)
+        self.tools = False
 
     def _packages(self):
         now = self.clock()
@@ -469,7 +473,7 @@ class Facts:
     def build(self, mem_free_now=None):
         packages = self._packages()
         p = self.prom
-        lines = [RULES, "", "Facts about this AVADO (read-only):"]
+        lines = [RULES + ("\n" + TOOLS_RULE if self.tools else ""), "", "Facts about this AVADO (read-only):"]
 
         # Stable facts first (they rarely change, so the model can reuse what it already read)
         box = []

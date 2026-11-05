@@ -1,0 +1,39 @@
+# Speech for Home Assistant (voice.py), in its own virtual environment (/opt/avado/voice) so it never
+# touches Open WebUI's Python packages. Every version pinned; wheels only. Checked live on PyPI
+# 2026-11-05: wyoming-faster-whisper 3.8.1 (2026-09-14) and wyoming-piper 2.5.2 (2026-09-11) are the
+# newest; wyoming 1.11.0 (2026-11-02), piper-tts 1.8.0, faster-whisper 1.2.1, ctranslate2 4.8.5,
+# onnxruntime 1.31.1.
+wyoming-faster-whisper==3.8.1
+wyoming-piper==2.5.2
+wyoming==1.11.0
+faster-whisper==1.2.1
+ctranslate2==4.8.5
+piper-tts==1.8.0
+pysilero-vad==3.4.0
+onnxruntime==1.31.1
+# av 19 removed av.open(metadata_errors=...), which faster-whisper 1.2.1 (the newest) still passes, so every
+# transcription failed with a TypeError. 18.1.0 is the newest that works (the one upstream's 3.8.1 image was
+# built with, 2026-09-14).
+av==18.1.0
+tokenizers==0.23.3
+huggingface_hub==2.4.0
+hf-xet==1.8.0
+numpy==2.5.4
+anyio==4.16.0
+click==8.5.0
+filelock==4.2.9
+flatbuffers==25.12.19
+fsspec==2026.9.0
+h11==0.16.0
+httpcore2==2.16.0
+httpx2==2.16.0
+idna==3.20
+packaging==26.3
+pathvalidate==3.3.1
+protobuf==7.36.2
+PyYAML==6.0.3
+regex==2026.9.29
+sentence_stream==1.4.0
+tqdm==4.70.1
+truststore==0.10.5
+typing_extensions==4.16.0
