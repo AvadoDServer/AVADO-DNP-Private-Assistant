@@ -263,7 +263,7 @@ network.
 
 tini is PID 1; `build/avado-start` runs Ollama, the helper, Open WebUI and nginx, each restarted if it
 stops, all but nginx's master as the unprivileged user `assistant` with no capabilities. The image is
-about 690 MB (160 MB as the `.tar.xz` the store ships). The helper's unit tests run during the image
+about 1.2 GB (312 MB as the `.tar.xz` the store ships; 0.1.0 was 160 MB, the rest is the speech part). The helper's unit tests run during the image
 build; a failing test fails the build.
 
 Volumes: `assistant_models` (`/models`: Ollama's models and key) and `assistant_data`
