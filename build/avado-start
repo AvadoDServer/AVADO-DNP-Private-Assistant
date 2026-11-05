@@ -4,7 +4,8 @@
 #   ollama      runs the models (127.0.0.1:11434, never reachable from outside)
 #   avado-setup picks and downloads the model, serves the setup page (127.0.0.1:8090)
 #   open-webui  the chat (127.0.0.1:8080)
-#   nginx       the only thing listening on the AVADO network (port 80)
+#   nginx       the only thing listening on the AVADO network (port 80, and
+#               443 with the box's *.my.ava.do certificate once it is there)
 #
 # tini (PID 1) passes a stop signal to the whole process group. Each part runs
 # in its own loop that starts it again if it stops, unless the package is stopping.
@@ -109,7 +110,42 @@ start_webui() {
 keep open-webui start_webui &
 pids+=($!)
 
+# https://assistant.my.ava.do (Chrome tries https first): the box's
+# *.my.ava.do certificate from its DAPPMANAGER, checked by avadotls.py (as the
+# app user), every 5 minutes until it is there, then daily. Without it, or if
+# nginx refuses it, the assistant stays http only.
+HTTPS_DIR=/run/avado/https
+mkdir -p "$HTTPS_DIR"
+: > "$HTTPS_DIR/https.conf"
+chown -R "$APP_USER:$APP_USER" "$HTTPS_DIR"
+https_loop() {
+    local pause
+    trap 'exit 0' TERM INT
+    sleep 5 &
+    wait $!
+    while true; do
+        "${AS_APP[@]}" python3 -I /opt/avado/setup/avadotls.py nginx "$HTTPS_DIR"
+        case $? in
+            0)
+                if nginx -t -q 2>/dev/null; then
+                    nginx -s reload && log "https://assistant.my.ava.do is on"
+                else
+                    : > "$HTTPS_DIR/https.conf"
+                    log "nginx refused the certificate, http only"
+                fi
+                pause=86400 ;;
+            2) pause=86400 ;;
+            *) pause=300 ;;
+        esac
+        sleep "$pause" &
+        wait $!
+    done
+}
+
 keep nginx nginx -g 'daemon off;' &
+pids+=($!)
+
+https_loop &
 pids+=($!)
 
 wait

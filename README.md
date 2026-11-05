@@ -236,8 +236,8 @@ Home Assistant's side (the switch, the Assist pipeline) is in AVADO-DNP-HomeAssi
 
 ## Privacy
 
-- Ollama, Open WebUI and the helper listen on 127.0.0.1 only; nginx on port 80 is the only listener on
-  the AVADO network for people. The doors for Home Assistant (above) answer only Home Assistant. Requests with any other host name (an IP address, a name a web page made up to
+- Ollama, Open WebUI and the helper listen on 127.0.0.1 only; nginx on port 80 (and 443, see HTTPS
+  below) is the only listener on the AVADO network for people. The doors for Home Assistant (above) answer only Home Assistant. Requests with any other host name (an IP address, a name a web page made up to
   reach the box) are redirected to `assistant.my.ava.do`. No host ports.
 - No cloud: `OLLAMA_NO_CLOUD=1`, `ENABLE_OPENAI_API=false`, no direct connections, no community
   sharing, `OFFLINE_MODE=true` (no update checks, no downloads from Hugging Face).
@@ -272,11 +272,19 @@ Volumes: `assistant_models` (`/models`: Ollama's models and key) and `assistant_
 Runs on today's boxes (Debian 11, Docker 20.10, docker-compose 1.25): no `devices`, not privileged, no
 DAPPMANAGER change. No dependencies.
 
+**HTTPS.** The page also answers on https://assistant.my.ava.do (port 443) with the box's
+`*.my.ava.do` certificate, the one the Admin and the other AVADO apps with https use (the
+box's DAPPMANAGER serves it at http://dappmanager.my.ava.do; iso.ava.do is the second source).
+Chrome tries https first ("Always use secure connections"), so without it Chrome showed "This
+site doesn't support a secure connection". The certificate is used only when it is for
+`*.my.ava.do`, valid for at least another hour and matches its key; until then the page stays
+http only and it is checked every 5 minutes, after that daily. http works as before, also in
+the Admin's Setup tab. nginx serves it (`/run/avado/https/https.conf`, written by `build/avado-start` with `build/setup/avadotls.py`, the same file as in the AVADO Bitcoin packages); if nginx refuses the files, it stays http only. Open WebUI accepts both addresses (`CORS_ALLOW_ORIGIN`).
+
 ## Not in this version
 
 - Graphics-chip acceleration (needs AVADO OS 2 and `devices` support in the DAPPMANAGER).
-- HTTPS (voice input in the browser needs it); the page is plain HTTP like most AVADO apps. Voice works
-  through Home Assistant (its apps and voice devices).
+- Voice input in the browser. Voice works through Home Assistant (its apps and voice devices).
 - One-click hand-over of the AI Connect key from AI Connect's page (the receiving end, `#aiconnect=`, is
   here; AI Connect's button is not).
 - Document search with embeddings (needs a vector store the slim image can use locally).
