@@ -4,8 +4,8 @@ When Home Assistant turns on "Use my AVADO's assistant for voice", this helper s
 Wyoming servers next to the model (both on 127.0.0.1; doors.py lets only Home Assistant reach them):
 
 * speech to text:  wyoming-faster-whisper (faster-whisper, model "auto" = base-int8 on this processor,
-                   about 0.3 GB of memory), on 127.0.0.1:10301, reached at assistant.my.ava.do:10300
-* text to speech:  wyoming-piper (Piper voices, about 0.15 GB of memory each), on 127.0.0.1:10201,
+                   about 0.5 GB of memory), on 127.0.0.1:10301, reached at assistant.my.ava.do:10300
+* text to speech:  wyoming-piper (Piper voices, about 0.2 GB of memory each), on 127.0.0.1:10201,
                    reached at assistant.my.ava.do:10200
 
 Both run as the app user, at nice 10 with the lowest disk priority and OOM score 1000 (the node stays
@@ -29,8 +29,9 @@ STT_PORT = 10301
 TTS_PORT = 10201
 PUBLIC_STT_PORT = 10300
 PUBLIC_TTS_PORT = 10200
-# Memory both speech servers take together while in use (whisper base-int8 + one Piper voice + the runtime)
-VOICE_GIB = 0.6
+# Memory both speech servers take together while in use: measured on the test box 0.49 GB (whisper base-int8)
+# + 0.20 GB (Piper, one voice) resident, 2026-11-05
+VOICE_GIB = 0.7
 
 # The voice the pipeline uses per language (Piper's own "medium" voices, the quality Home Assistant
 # suggests). Any other language: English (Piper has no Croatian voice, for example).

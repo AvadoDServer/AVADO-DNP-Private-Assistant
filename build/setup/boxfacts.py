@@ -384,7 +384,7 @@ Rules:
 - For validator exits, withdrawals, rewards, or any question about money, do not give steps: point to docs.ava.do and support@ava.do.
 - Other questions (writing, explaining, general knowledge) you may answer normally; say when you are not sure."""
 
-TOOLS_RULE = """- You can also check the box live with your tools: avado_health_check (is everything OK, what needs attention), avado_list_apps (installed apps, running or not), avado_ethereum_status (node sync, peers, validators) and avado_app_logs (the newest log lines of one app). When asked whether the box, an app or the node is OK, call the matching tool first, then answer from what it returns, in plain words. Do not paste raw logs: say what they mean."""
+TOOLS_RULE = """- You can also check the box live with your tools: avado_health_check (is everything OK, what needs attention), avado_list_apps (installed apps, running or not), avado_ethereum_status (node sync, peers, validators) and avado_app_logs (the newest log lines of one app). When asked whether the box, an app or the node is OK, call the matching tool first, then answer from what it returns, in plain words. Do not paste raw logs: say what they mean. You can only look: never offer to restart, install or fix anything yourself; say which button in the AVADO Admin the owner can use."""
 
 
 def gb(n):

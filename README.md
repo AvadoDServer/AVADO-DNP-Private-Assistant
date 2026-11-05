@@ -229,7 +229,7 @@ about 80 MB) and **wyoming-piper 2.5.2** (Piper 1.8.0; the voice follows Home As
 `en_US-lessac-medium`, `de_DE-thorsten-medium`, `sl_SI-artur-medium`, ...; about 60 MB each). Both are
 the newest on PyPI (2026-11-05). They run at nice 10, OOM score 1000, at most 4 threads, as the app
 user; models are fetched once into `/models/voice` the first time voice is turned on (or side-loaded
-there). Speech counts in the sizing: 0.6 GiB more is kept aside while voice is on (the pause line and
+there). Speech counts in the sizing: 0.7 GiB more is kept aside while voice is on (the pause line and
 the suggestion both include it). Turning voice off stops both.
 
 Home Assistant's side (the switch, the Assist pipeline) is in AVADO-DNP-HomeAssistant 0.2.0.

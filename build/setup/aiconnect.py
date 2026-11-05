@@ -36,6 +36,12 @@ AI_CONNECT_PAGE = "http://mcp.my.ava.do"
 ALLOWED_TOOLS = ("health_check", "list_apps", "app_logs", "ethereum_status")
 # A tool that changes something: a key that offers one of these is not taken.
 ACTION_TOOLS = ("restart_app", "install_app", "update_app")
+# AI Connect's own instructions speak of restarting and installing (other assistants may do that). The
+# assistant can only look, so the pass-through gives Open WebUI these instead (seen on the test box: the
+# model offered to restart an app "once Allow changes is on").
+INSTRUCTIONS = ("These tools only look at the owner's AVADO box; nothing can be restarted, installed or changed "
+                "through them. Never offer to fix, restart or install something yourself: tell the owner which "
+                "button in the AVADO Admin to use, or to ask AVADO support.")
 LOG_LINES = 40
 MAX_RESULT_CHARS = 6000
 MAX_BODY = 256 * 1024
@@ -257,7 +263,9 @@ class AIConnect:
             self.last_error = None
         if msg_id is None or status == 202:
             return 202, None
-        if method == "tools/list":
+        if method == "initialize" and isinstance(out.get("result"), dict):
+            out["result"]["instructions"] = INSTRUCTIONS
+        elif method == "tools/list":
             filter_tools(out.get("result"))
         elif method == "tools/call":
             trim_result(msg["params"].get("name"), out.get("result"))

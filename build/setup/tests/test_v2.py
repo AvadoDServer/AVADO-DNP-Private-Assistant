@@ -125,6 +125,11 @@ class AIConnectPassThrough(unittest.TestCase):
                                "params": {"name": "health_check", "arguments": {}}})
         self.assertIn("[shortened", out["result"]["content"][0]["text"])
 
+    def test_ai_connects_instructions_are_replaced(self):
+        code, out = self.call({"jsonrpc": "2.0", "id": 4, "method": "initialize", "params": {}})
+        self.assertEqual(out["result"]["instructions"], ac.INSTRUCTIONS)
+        self.assertIn("only look", ac.INSTRUCTIONS)
+
     def test_notifications_get_202(self):
         self.assertEqual(self.call({"jsonrpc": "2.0", "method": "notifications/initialized"}), (202, None))
 
@@ -280,7 +285,7 @@ class SpeechMemory(unittest.TestCase):
         m = manager(self.dir, free=10.0)   # qwen3.5:4b needs 4.2 + 5.5 = 9.7
         m.check_memory()
         self.assertFalse(m.paused)
-        m.voice.on = True                  # + 0.6 = 10.3
+        m.voice.on = True                  # + 0.7 = 10.4
         m.check_memory()
         self.assertTrue(m.paused)
 
