@@ -79,6 +79,7 @@ RUN set -eux; \
         open("/opt/avado/package-version","w").write(v+"\n")'; \
     rm /tmp/dappnode_package.json; \
     chmod 755 /usr/local/bin/avado-start /usr/local/bin/avado-ollama; \
+    mkdir -p /run/avado/https; : > /run/avado/https/https.conf; \
     nginx -t; \
     /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.14"; \
     test -f /opt/avado/setup/public/index.html; \
@@ -151,7 +152,7 @@ ENV OLLAMA_HOST=127.0.0.1:11434 \
     BYPASS_EMBEDDING_AND_RETRIEVAL=true \
     DEFAULT_MODEL_METADATA='{"capabilities":{"builtin_tools":false}}' \
     DEFAULT_MODEL_PARAMS='{"think":false}' \
-    CORS_ALLOW_ORIGIN=http://assistant.my.ava.do \
+    CORS_ALLOW_ORIGIN="http://assistant.my.ava.do;https://assistant.my.ava.do" \
     AVADO_STATE_DIR=/app/backend/data/avado \
     AVADO_APP_DOORS=homeassistant.my.ava.do \
     AVADO_VERSION_FILE=/opt/avado/package-version
