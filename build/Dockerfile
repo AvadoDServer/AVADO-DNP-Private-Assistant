@@ -10,7 +10,7 @@
 # digest with `docker buildx imagetools inspect <image>:<tag>` ("Digest:" line).
 # Checked 2026-11-04.
 ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.13.0-slim@sha256:283efb20756785229a388bcd1e56a052f5284ae8c861717eed5eaaa3bba6b20a
-ARG OLLAMA_IMAGE=ollama/ollama:0.40.14@sha256:ebaef4f4c5d93660e1f25f8ad085a112f51ccfb0e8458073e71793959dba91c9
+ARG OLLAMA_IMAGE=ollama/ollama:0.40.15@sha256:0e59999e0e8f9fd4e704bd788a89b7e4cad399367fb1365f8c102ac662288761
 
 ########## Ollama, processor only
 # The upstream image is about 5 GB, nearly all of it graphics-card libraries
@@ -81,7 +81,7 @@ RUN set -eux; \
     chmod 755 /usr/local/bin/avado-start /usr/local/bin/avado-ollama; \
     mkdir -p /run/avado/https; : > /run/avado/https/https.conf; \
     nginx -t; \
-    /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.14"; \
+    /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.15"; \
     test -f /opt/avado/setup/public/index.html; \
     test -x /opt/avado/voice/bin/wyoming-faster-whisper; \
     ! test -e /opt/avado/setup/tests
