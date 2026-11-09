@@ -250,7 +250,7 @@ Home Assistant's side (the switch, the Assist pipeline) is in AVADO-DNP-HomeAssi
 
 One container, built in `build/Dockerfile` from:
 
-- `ghcr.io/open-webui/open-webui:v0.13.0-slim` (Debian 13), pinned by digest;
+- `ghcr.io/open-webui/open-webui:v0.13.3-slim` (Debian 13), pinned by digest;
 - the Ollama program and its processor libraries from `ollama/ollama:0.40.15`, pinned by digest. The
   upstream image is about 5 GB, nearly all graphics-card libraries (CUDA, MLX, Vulkan) no AVADO box can
   use; only about 70 MB is kept;
