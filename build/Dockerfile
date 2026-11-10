@@ -9,7 +9,7 @@
 # only a label; the digest decides. Update tag and digest together: get the
 # digest with `docker buildx imagetools inspect <image>:<tag>` ("Digest:" line).
 # Checked 2026-11-04.
-ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.13.0-slim@sha256:283efb20756785229a388bcd1e56a052f5284ae8c861717eed5eaaa3bba6b20a
+ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.13.3-slim@sha256:8faf917243afee55e042b10ddc08ed6ae6fa9c62522c7e14d81e7cf2922325ae
 ARG OLLAMA_IMAGE=ollama/ollama:0.40.15@sha256:0e59999e0e8f9fd4e704bd788a89b7e4cad399367fb1365f8c102ac662288761
 
 ########## Ollama, processor only
