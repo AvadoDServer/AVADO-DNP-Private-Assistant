@@ -1,7 +1,7 @@
 version: '3.4'
 services:
   assistant.avado.dnp.dappnode.eth:
-    image: 'assistant.avado.dnp.dappnode.eth:0.2.3'
+    image: 'assistant.avado.dnp.dappnode.eth:0.2.4'
     build:
       context: .
       dockerfile: build/Dockerfile
