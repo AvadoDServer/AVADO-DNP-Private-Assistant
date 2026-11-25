@@ -9,8 +9,8 @@
 # only a label; the digest decides. Update tag and digest together: get the
 # digest with `docker buildx imagetools inspect <image>:<tag>` ("Digest:" line).
 # Checked 2026-11-04.
-ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.13.4-slim@sha256:0c4439e78c24c85e3e7a41936771d3b02f0df38daf28a086cd83ca74804f7676
-ARG OLLAMA_IMAGE=ollama/ollama:0.40.17@sha256:ccc42bcd3d5fcf7ab0d532b300382154e1a4da56fc666bdb313b78ebdd912754
+ARG OPENWEBUI_IMAGE=ghcr.io/open-webui/open-webui:v0.13.5-slim@sha256:f5c36d2d6c39fa6dac100ef6907d741b9571ab3d7be2368a06fa6fc13c35e25f
+ARG OLLAMA_IMAGE=ollama/ollama:0.40.18@sha256:1cabd20e1762a7a8444bf4a7110b346d923cd77ab6c97c984434140638c913ec
 
 ########## Ollama, processor only
 # The upstream image is about 5 GB, nearly all of it graphics-card libraries
@@ -81,7 +81,7 @@ RUN set -eux; \
     chmod 755 /usr/local/bin/avado-start /usr/local/bin/avado-ollama; \
     mkdir -p /run/avado/https; : > /run/avado/https/https.conf; \
     nginx -t; \
-    /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.17"; \
+    /usr/local/bin/ollama --version 2>&1 | grep -q "0.40.18"; \
     test -f /opt/avado/setup/public/index.html; \
     test -x /opt/avado/voice/bin/wyoming-faster-whisper; \
     ! test -e /opt/avado/setup/tests
